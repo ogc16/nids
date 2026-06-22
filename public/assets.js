@@ -330,7 +330,7 @@ function renderAssetGroup(elementId, items, countId, incidents) {
         const linkedHtml = linked.length > 0
           ? linked.map(inc =>
               `<div style="padding:3px 0;font-size:12px">
-                <a href="/incidents.html?id=${inc.id}" class="clickable">#${inc.id}</a>
+                <a href="/incidents?id=${inc.id}" class="clickable">#${inc.id}</a>
                 ${inc.title}
                 <span style="color:var(--text-secondary)">${inc.status}</span>
               </div>`

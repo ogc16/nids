@@ -47,6 +47,29 @@
   </div>
 
   <script>
+    if (!localStorage.getItem('cookies_accepted')) {
+      const banner = document.createElement('div');
+      banner.className = 'cookie-banner';
+      banner.innerHTML = '<p>This site uses cookies for authentication and security purposes. By continuing, you consent to our use of cookies.</p><button class="btn btn-primary" id="cookieAccept">Accept</button>';
+      document.body.appendChild(banner);
+      document.getElementById('cookieAccept').onclick = () => {
+        localStorage.setItem('cookies_accepted', 'true');
+        banner.remove();
+      };
+    }
+
+    function showLoading(msg) {
+      const el = document.createElement('div');
+      el.className = 'loading-overlay';
+      el.id = 'loginLoading';
+      el.innerHTML = `<div class="loading-spinner"></div><div class="loading-text">${msg}&#8230;</div>`;
+      document.body.appendChild(el);
+    }
+    function hideLoading() {
+      const el = document.getElementById('loginLoading');
+      if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 300); }
+    }
+
     document.getElementById('loginForm').onsubmit = async (e) => {
       e.preventDefault();
       const btn = document.getElementById('loginBtn');
@@ -57,6 +80,7 @@
       btn.disabled = true;
       btn.textContent = 'Signing in...';
       errorEl.style.display = 'none';
+      showLoading('Signing in');
 
       try {
         const res = await fetch('/api/auth/login', {
@@ -75,6 +99,7 @@
         localStorage.setItem('nids_user', JSON.stringify(data.user));
         window.location.href = '/';
       } catch (err) {
+        hideLoading();
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
         btn.disabled = false;

@@ -23,7 +23,13 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false 
 app.use(cors({ origin: config.corsOrigin, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+// Block direct .html access
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html')) return res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });
+  next();
+});
+// Serve static files; auto-append .html for clean URLs
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 // Global rate limiting
 app.use('/api/', rateLimit({ windowMs: config.rateLimitWindowMs, max: config.rateLimitMax, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests' } }));

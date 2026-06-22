@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <span class="tag ${qaStatusClass(item.status)}">${item.status}</span>
               <span>${item.category}</span>
               <span>&#8226;</span>
-              <span>Rule: <a href="/rules.html?id=${item.ruleId}" class="clickable">${getRuleName(item.ruleId)}</a></span>
+              <span>Rule: <a href="/rules?id=${item.ruleId}" class="clickable">${getRuleName(item.ruleId)}</a></span>
               <span>&#8226;</span>
               <span>Tester: ${item.tester}</span>
               ${item.testedAt ? `<span>&#8226;</span><span>Tested: ${formatDate(item.testedAt)}</span>` : ''}
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               { label: 'Test Name', value: item.testName },
               { label: 'Status', value: `<span class="tag ${qaStatusClass(item.status)}">${item.status}</span>` },
               { label: 'Category', value: item.category },
-              { label: 'Rule', value: `<a href="/rules.html?id=${item.ruleId}" class="clickable">${ruleName}</a>` },
+              { label: 'Rule', value: `<a href="/rules?id=${item.ruleId}" class="clickable">${ruleName}</a>` },
               { label: 'Tester', value: item.tester },
               { label: 'Tested At', value: item.testedAt ? formatDate(item.testedAt) : 'Not yet tested' },
               { label: 'Notes', value: item.notes || 'None' }

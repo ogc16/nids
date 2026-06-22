@@ -29,8 +29,8 @@ async function apiFetch(path, options = {}) {
   if (res.status === 401 && !path.includes('/auth/login')) {
     setToken(null);
     setCurrentUser(null);
-    const loginPage = '/login.html';
-    if (!window.location.pathname.includes('login.html')) {
+    const loginPage = '/login';
+    if (!window.location.pathname.includes('login')) {
       window.location.href = loginPage;
     }
     throw new Error('Authentication required');
@@ -52,6 +52,25 @@ async function apiFetch(path, options = {}) {
   }
 
   return data;
+}
+
+let _loadingEl = null;
+let _loadingTimer = null;
+
+function showLoading(msg = 'Fetching data') {
+  hideLoading();
+  _loadingEl = document.createElement('div');
+  _loadingEl.className = 'loading-overlay';
+  _loadingEl.innerHTML = `<div class="loading-spinner"></div><div class="loading-text">${msg}&#8230;</div>`;
+  document.body.appendChild(_loadingEl);
+}
+
+function hideLoading() {
+  if (_loadingTimer) { clearTimeout(_loadingTimer); _loadingTimer = null; }
+  if (_loadingEl) {
+    _loadingEl.classList.add('hidden');
+    setTimeout(() => { if (_loadingEl) { _loadingEl.remove(); _loadingEl = null; } }, 300);
+  }
 }
 
 function showToast(message, type = 'success') {
@@ -146,14 +165,30 @@ function connectSSE() {
   es.onerror = () => { setTimeout(connectSSE, 3000); };
 }
 
+function initCookieBanner() {
+  if (localStorage.getItem('cookies_accepted')) return;
+  const banner = document.createElement('div');
+  banner.className = 'cookie-banner';
+  banner.innerHTML = '<p>This site uses cookies for authentication and security purposes. By continuing, you consent to our use of cookies.</p><button class="btn btn-primary" id="cookieAccept">Accept</button>';
+  document.body.appendChild(banner);
+  document.getElementById('cookieAccept').onclick = () => {
+    localStorage.setItem('cookies_accepted', 'true');
+    banner.remove();
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  if (!window.location.pathname.includes('login.html')) {
+  if (!window.location.pathname.includes('login')) {
+    showLoading('Loading workspace');
+    _loadingTimer = setTimeout(hideLoading, 3000);
     if (!getToken()) {
-      window.location.href = '/login.html';
+      window.location.href = '/login';
       return;
     }
     connectSSE();
   }
+
+  initCookieBanner();
 
   // Sidebar toggle on mobile
   const sidebar = document.querySelector('.sidebar');

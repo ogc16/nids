@@ -80,7 +80,7 @@ function renderTaskGroup(elementId, items, countId) {
           <span>${item.estimatedHours}h est.</span>
           <span>&#8226;</span>
           <span>Due: ${formatDateShort(item.dueDate)}</span>
-          ${item.ruleId ? `<span>&#8226;</span><span><a href="/rules.html?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a></span>` : ''}
+          ${item.ruleId ? `<span>&#8226;</span><span><a href="/rules?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a></span>` : ''}
         </div>
       </div>
       <div class="item-actions">
@@ -103,7 +103,7 @@ function renderTaskGroup(elementId, items, countId) {
           { label: 'Sprint', value: item.sprint },
           { label: 'Estimated Hours', value: `${item.estimatedHours}h` },
           { label: 'Due Date', value: formatDateShort(item.dueDate) },
-          { label: 'Related Rule', value: item.ruleId ? `<a href="/rules.html?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a>` : 'N/A' }
+          { label: 'Related Rule', value: item.ruleId ? `<a href="/rules?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a>` : 'N/A' }
         ]);
       } catch (err) {
         showToast('Failed to load task details', 'error');

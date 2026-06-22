@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             { label: 'Attack Type', value: item.attackType },
             { label: 'Assignee', value: item.assignee },
             { label: 'Detected At', value: formatDate(item.detectedAt) },
-            { label: 'Rule ID', value: item.ruleId ? `<a href="/rules.html?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a>` : 'N/A' },
+            { label: 'Rule ID', value: item.ruleId ? `<a href="/rules?id=${item.ruleId}" class="clickable">Rule #${item.ruleId}</a>` : 'N/A' },
             { label: 'Resolution Notes', value: item.resolutionNotes || 'None' }
           ]);
         } catch (err) {
