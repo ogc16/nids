@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Detection Rule - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents.html" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules.html" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel.html" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Automation</div>
+          <a href="/playbooks.html" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks.html" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa.html" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Infrastructure</div>
+          <a href="/network-monitoring.html" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/assets.html" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Reports</div>
+          <a href="/customer-report.html" class="nav-item"><span class="icon">&#128202;</span> Customer Report</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident.html" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule.html" class="nav-item active"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset.html" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook.html" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup.html" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128221; Submit a Detection Rule</h2>
+          <div class="subtitle">Propose a new IDS/IPS detection rule</div>
+        </div>
+      </div>
+
+      <div class="form-container">
+        <form id="ruleForm">
+          <div class="form-group">
+            <label for="name">Rule Name</label>
+            <input type="text" id="name" class="form-control" placeholder="e.g., ICMP Tunneling Detection" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="protocol">Protocol</label>
+              <select id="protocol" class="form-control" required>
+                <option value="">Select protocol...</option>
+                <option value="TCP">TCP</option>
+                <option value="UDP">UDP</option>
+                <option value="TCP/UDP">TCP/UDP</option>
+                <option value="HTTP">HTTP</option>
+                <option value="DNS">DNS</option>
+                <option value="SSH">SSH</option>
+                <option value="SMB">SMB</option>
+                <option value="ICMP">ICMP</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="threatCategory">Threat Category</label>
+              <select id="threatCategory" class="form-control" required>
+                <option value="">Select category...</option>
+                <option value="Command & Control">Command & Control</option>
+                <option value="Exfiltration">Exfiltration</option>
+                <option value="Web Application Attack">Web Application Attack</option>
+                <option value="Reconnaissance">Reconnaissance</option>
+                <option value="Brute Force">Brute Force</option>
+                <option value="Malware">Malware</option>
+                <option value="Lateral Movement">Lateral Movement</option>
+                <option value="DDoS">DDoS</option>
+                <option value="C2/Tunneling">C2/Tunneling</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="priority">Priority</label>
+              <select id="priority" class="form-control" required>
+                <option value="">Select priority...</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ruleStatus">Initial Status</label>
+              <select id="ruleStatus" class="form-control" required>
+                <option value="In Development">In Development</option>
+                <option value="Active">Active (ready immediately)</option>
+              </select>
+              <div class="hint">New rules typically start as "In Development"</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Rule Description / Logic</label>
+            <textarea id="description" class="form-control" placeholder="Describe the detection logic, signatures, thresholds, or behavioral patterns this rule should match..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Submit Rule</button>
+            <a href="/rules.html" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('ruleForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = {
+          name: form.name.value,
+          protocol: form.protocol.value,
+          threatCategory: form.threatCategory.value,
+          priority: form.priority.value,
+          status: form.ruleStatus.value,
+          lastUpdated: new Date().toISOString().split('T')[0],
+          falsePositiveRate: 0
+        };
+
+        try {
+          const newRule = await apiFetch('/detection-rules', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+          if (form.ruleStatus.value !== 'Active') {
+            const taskData = {
+              taskName: `Implement ${form.name.value} detection logic`,
+              status: 'To Do',
+              priority: form.priority.value === 'Critical' ? 'High' : form.priority.value,
+              assignee: 'Unassigned',
+              sprint: 'Sprint 24',
+              estimatedHours: 16,
+              dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+              ruleId: newRule.id
+            };
+            await apiFetch('/engineering-tasks', {
+              method: 'POST',
+              body: JSON.stringify(taskData)
+            });
+            showToast('Detection rule submitted. Engineering task created.');
+          } else {
+            showToast('Detection rule submitted successfully');
+          }
+          setTimeout(() => window.location.href = '/rules.html', 1000);
+        } catch (err) {
+          showToast('Failed to submit rule', 'error');
+        }
+      };
+    });
+  </script>
+</body>
+</html>

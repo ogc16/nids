@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "indicator": "185.220.101.0/24",
+    "type": "IP Range",
+    "severity": "Critical",
+    "confidence": 95,
+    "status": "Active",
+    "source": "AlienVault OTX",
+    "firstSeen": "2026-05-01",
+    "lastUpdated": "2026-06-20",
+    "description": "Known C2 infrastructure cluster",
+    "mitreTactics": [
+      "TA0011"
+    ]
+  }
+]

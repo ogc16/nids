@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Asset - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents.html" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules.html" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel.html" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Automation</div>
+          <a href="/playbooks.html" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks.html" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa.html" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Infrastructure</div>
+          <a href="/network-monitoring.html" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/assets.html" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Reports</div>
+          <a href="/customer-report.html" class="nav-item"><span class="icon">&#128202;</span> Customer Report</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident.html" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule.html" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset.html" class="nav-item active"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook.html" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128421; Add Network Asset</h2>
+          <div class="subtitle">Register a new device or network segment for monitoring</div>
+        </div>
+      </div>
+
+      <div class="form-container">
+        <form id="assetForm">
+          <div class="form-group">
+            <label for="assetName">Asset Name</label>
+            <input type="text" id="assetName" class="form-control" placeholder="e.g., Core Production DB" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ipRange">IP Address / Range</label>
+              <input type="text" id="ipRange" class="form-control" placeholder="e.g., 10.0.2.0/24 or 10.0.1.10-10.0.1.50" required>
+              <div class="hint">CIDR notation (e.g. 10.0.2.0/24) or IP range (e.g. 10.0.1.10-10.0.1.50)</div>
+            </div>
+            <div class="form-group">
+              <label for="type">Asset Type</label>
+              <select id="type" class="form-control" required>
+                <option value="">Select type...</option>
+                <option value="Server">Server</option>
+                <option value="Workstation">Workstation</option>
+                <option value="Network Device">Network Device</option>
+                <option value="Firewall">Firewall</option>
+                <option value="Gateway">Gateway</option>
+                <option value="Database">Database</option>
+                <option value="Cloud Instance">Cloud Instance</option>
+                <option value="IoT">IoT Device</option>
+                <option value="Container">Container</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="riskLevel">Risk Level</label>
+              <select id="riskLevel" class="form-control" required>
+                <option value="">Select risk level...</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="monitoringStatus">Monitoring Status</label>
+              <select id="monitoringStatus" class="form-control" required>
+                <option value="">Select status...</option>
+                <option value="Online">Online</option>
+                <option value="Degraded">Degraded</option>
+                <option value="Offline">Offline</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="owner">Owner / Team</label>
+            <input type="text" id="owner" class="form-control" placeholder="e.g., Platform Engineering" required>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add Asset</button>
+            <a href="/assets.html" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('assetForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = {
+          assetName: form.assetName.value,
+          ipRange: form.ipRange.value,
+          type: form.type.value,
+          riskLevel: form.riskLevel.value,
+          monitoringStatus: form.monitoringStatus.value,
+          owner: form.owner.value,
+          openIncidentCount: 0,
+          lastIncidentDate: null,
+          lastScanned: new Date().toISOString()
+        };
+        try {
+          await apiFetch('/network-assets', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+          showToast('Asset added successfully');
+          setTimeout(() => window.location.href = '/assets.html', 1000);
+        } catch (err) {
+          showToast('Failed to add asset', 'error');
+        }
+      };
+    });
+  </script>
+</body>
+</html>

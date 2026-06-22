@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "assetName": "Core Web Server",
+    "ipRange": "10.0.1.0/24",
+    "type": "Server",
+    "riskLevel": "Critical",
+    "monitoringStatus": "Online",
+    "owner": "Platform Engineering",
+    "openIncidentCount": 1,
+    "lastIncidentDate": "2026-06-22T07:15:13.571Z",
+    "lastScanned": "2026-06-21T07:15:13.571Z"
+  },
+  {
+    "id": 2,
+    "assetName": "Corporate Firewall",
+    "ipRange": "10.0.0.1",
+    "type": "Firewall",
+    "riskLevel": "High",
+    "monitoringStatus": "Online",
+    "owner": "Network Team",
+    "openIncidentCount": 0,
+    "lastIncidentDate": null,
+    "lastScanned": "2026-06-20T07:15:13.571Z"
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "srcIp": "10.0.1.45",
+    "destIp": "185.220.101.22",
+    "srcPort": 49152,
+    "destPort": 443,
+    "protocol": "HTTPS",
+    "bytes": 45000,
+    "packets": 120,
+    "duration": 5.2,
+    "timestamp": "2026-06-22T06:45:13.571Z",
+    "status": "blocked",
+    "application": "Web",
+    "assetId": 1,
+    "ruleId": 1,
+    "country": "RU"
+  }
+]

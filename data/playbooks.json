@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "C2 Containment",
+    "category": "Incident Response",
+    "severity": "Critical",
+    "status": "Active",
+    "createdBy": "Alice Chen",
+    "description": "Isolate and investigate C2 communication",
+    "triggerOnAttackTypes": [
+      "C2 Communication"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "action": "Isolate affected host from network",
+        "assignee": "SOC Tier 1",
+        "duration": "5 min"
+      },
+      {
+        "order": 2,
+        "action": "Collect network flow logs",
+        "assignee": "SOC Tier 2",
+        "duration": "15 min"
+      },
+      {
+        "order": 3,
+        "action": "Analyze C2 payload and update IOCs",
+        "assignee": "Threat Intel",
+        "duration": "30 min"
+      }
+    ],
+    "runCount": 3,
+    "lastRun": "2026-06-22T06:15:13.571Z",
+    "createdAt": "2026-06-15T07:15:13.571Z"
+  }
+]

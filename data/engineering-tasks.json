@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "taskName": "Implement C2 beaconing rule",
+    "status": "In Progress",
+    "priority": "Critical",
+    "assignee": "Alice Chen",
+    "sprint": "Sprint 24",
+    "ruleId": 1,
+    "description": "Deploy the C2 detection rule to production sensors",
+    "createdAt": "2026-06-21T07:15:13.570Z",
+    "dueDate": "2026-06-23T07:15:13.570Z"
+  }
+]
