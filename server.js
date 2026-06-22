@@ -94,6 +94,20 @@ app.get('/api/audit/log', authenticate, authorize('admin'), (req, res) => {
   res.json(getAuditLog(limit, offset));
 });
 
+// ---- Traffic stats (must be before generic :id route) ----
+app.get('/api/network-traffic/stats', optionalAuth, (req, res) => {
+  const traffic = readTable('network-traffic');
+  const totalBytes = traffic.reduce((sum, t) => sum + t.bytes, 0);
+  res.json({
+    totalFlows: traffic.length,
+    suspiciousCount: traffic.filter(t => t.status === 'suspicious').length,
+    blockedCount: traffic.filter(t => t.status === 'blocked').length,
+    allowedCount: traffic.filter(t => t.status === 'allowed').length,
+    totalBytes,
+    uniqueProtocols: [...new Set(traffic.map(t => t.protocol))].length
+  });
+});
+
 // ---- Generic CRUD with Auth + Validation + Audit + Pagination ----
 const WRITABLE_TABLES = ['incidents', 'detection-rules', 'threat-intel', 'engineering-tasks', 'network-assets', 'qa-tests', 'playbooks', 'security-policies', 'security-standards'];
 const READONLY_TABLES = ['network-traffic'];
@@ -184,20 +198,6 @@ ALL_TABLES.forEach(table => {
       } catch (err) { next(err); }
     });
   }
-});
-
-// ---- Traffic stats ----
-app.get('/api/network-traffic/stats', optionalAuth, (req, res) => {
-  const traffic = readTable('network-traffic');
-  const totalBytes = traffic.reduce((sum, t) => sum + t.bytes, 0);
-  res.json({
-    totalFlows: traffic.length,
-    suspiciousCount: traffic.filter(t => t.status === 'suspicious').length,
-    blockedCount: traffic.filter(t => t.status === 'blocked').length,
-    allowedCount: traffic.filter(t => t.status === 'allowed').length,
-    totalBytes,
-    uniqueProtocols: [...new Set(traffic.map(t => t.protocol))].length
-  });
 });
 
 // ---- Stats ----
