@@ -6,12 +6,14 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 
 const config = require('./lib/config');
 const { authenticate, optionalAuth, authorize, ROLES, seedAdminUser, loginRoute, meRoute, listUsersRoute, createUserRoute, updateUserRoute, deleteUserRoute } = require('./lib/auth');
 const { validate, schemas } = require('./lib/validate');
 const { audit, getAuditLog } = require('./lib/audit');
 const { errorHandler, notFoundHandler, AppError, ValidationError, NotFoundError } = require('./lib/errors');
+const { loadCerts } = require('./lib/tls');
 
 const app = express();
 const DATA_DIR = config.dataDir;
@@ -620,6 +622,16 @@ app.use(errorHandler);
 
 // ---- Start ----
 seedAdminUser();
+
+const tls = loadCerts();
+
+if (tls) {
+  https.createServer(tls, app).listen(config.https.port, config.host, () => {
+    console.log(`NIDS Enterprise running at https://localhost:${config.https.port}`);
+    console.log(`  Auth: POST /api/auth/login`);
+    console.log(`  Default: admin:admin — CHANGE PASSWORD IMMEDIATELY`);
+  });
+}
 
 app.listen(config.port, config.host, () => {
   console.log(`NIDS Enterprise running at http://localhost:${config.port}`);
