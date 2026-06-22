@@ -154,4 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     connectSSE();
   }
+
+  // Sidebar toggle on mobile
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    sidebar.addEventListener('click', (e) => {
+      if (window.innerWidth <= 768 && e.target === sidebar) {
+        sidebar.classList.toggle('open');
+      }
+    });
+  }
 });

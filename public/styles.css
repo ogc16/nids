@@ -706,12 +706,92 @@ textarea.form-control {
 .row-blocked:hover { background: rgba(248, 81, 73, 0.12) !important; }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .main-content { padding: 20px 24px; }
+  .stat-card .stat-value { font-size: 28px; }
+}
+
 @media (max-width: 768px) {
   .app-layout { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-  .main-content { max-width: 100%; padding: 16px; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 56px; overflow: hidden; transition: max-height 0.3s ease; }
+  .sidebar.open { max-height: 100vh; overflow-y: auto; }
+  .sidebar::before {
+    content: '\2630  Menu';
+    display: block;
+    padding: 14px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    cursor: pointer;
+    user-select: none;
+  }
+  .sidebar.open::before { content: '\2715  Close'; }
+  .sidebar > * { display: none; }
+  .sidebar.open > * { display: block; }
+  .sidebar-header, .sidebar-nav { display: block !important; }
+  .main-content { max-width: 100%; padding: 14px; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .page-header .header-actions { width: 100%; }
+  .page-header .header-actions .btn { flex: 1; justify-content: center; }
+  .page-header h2 { font-size: 20px; }
   .charts-row { grid-template-columns: 1fr; }
-  .form-row { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .stat-card { padding: 12px 14px; }
+  .stat-card .stat-value { font-size: 24px; }
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+  .filters-bar { flex-direction: column; }
+  .filter-input { min-width: unset; width: 100%; }
+  .filter-select { width: 100%; }
+  .group-item { grid-template-columns: 1fr; }
+  .group-item .item-meta { flex-wrap: wrap; }
+  .group-item .item-actions { flex-wrap: wrap; }
+  .group-item .item-actions .btn { flex: 1; justify-content: center; min-width: 0; font-size: 11px; padding: 4px 6px; }
+  .data-table-wrapper { margin: 0 -14px; border-radius: 0; border-left: none; border-right: none; }
+  .data-table { font-size: 12px; }
+  .data-table th, .data-table td { padding: 8px 10px; }
+  .modal { width: 95vw; max-height: 90vh; }
+  .modal-header { padding: 12px 14px; }
+  .modal-body { padding: 14px; }
+  .modal-header h3 { font-size: 14px; }
+  .detail-label { width: 100px; font-size: 11px; }
+  .detail-value { font-size: 12px; }
+  .form-container { max-width: 100%; }
+  .card { padding: 14px; }
+  .chart-container { padding: 14px; }
+  .chart-container canvas { max-height: 200px; }
+  .quick-actions { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+  .quick-action-card { padding: 10px 12px; }
+  .quick-action-card .qa-icon { font-size: 20px; }
+  .stat-card-small { padding: 8px 10px; }
+  .stat-card-small .stat-value { font-size: 16px; }
+  .groups-container { gap: 12px; }
+}
+
+@media (max-width: 480px) {
+  .main-content { padding: 10px; }
+  .dashboard-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 10px; }
+  .stat-card .stat-value { font-size: 20px; }
+  .stat-card .stat-label { font-size: 10px; }
+  .page-header h2 { font-size: 18px; }
+  .page-header .subtitle { font-size: 11px; }
+  .group-item { padding: 8px 12px; }
+  .group-header { padding: 10px 12px; font-size: 12px; }
+  .nav-item { font-size: 12px; padding: 6px 10px; }
+  .btn { font-size: 12px; padding: 6px 12px; }
+  .btn-sm { font-size: 11px; padding: 3px 8px; }
+  .data-table { font-size: 11px; }
+  .data-table th, .data-table td { padding: 6px 8px; }
+  .modal { width: 100vw; max-height: 100vh; border-radius: 0; }
+  .modal-backdrop { align-items: flex-end; }
+  .toast { left: 10px; right: 10px; bottom: 10px; text-align: center; }
+  .quick-actions { grid-template-columns: 1fr 1fr; }
+  .stat-card-small .stat-value { font-size: 14px; }
+}
+
+/* Sidebar hamburger toggle */
+@media (min-width: 769px) {
+  .sidebar::before { display: none !important; }
 }
 
 /* Asset health indicator */
