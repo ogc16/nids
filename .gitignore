@@ -3,4 +3,5 @@ node_modules/
 data/audit-log.jsonl
 data/users.json
 data/automations-log.json
+data/asset-logs.json
 certs/
