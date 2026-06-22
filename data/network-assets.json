@@ -9,7 +9,28 @@
     "owner": "Platform Engineering",
     "openIncidentCount": 1,
     "lastIncidentDate": "2026-06-22T07:15:13.571Z",
-    "lastScanned": "2026-06-21T07:15:13.571Z"
+    "lastScanned": "2026-06-21T07:15:13.571Z",
+    "description": "Primary web server hosting customer-facing application and API endpoints. Processes PII and authentication data.",
+    "risks": [
+      {
+        "risk": "Web application vulnerability exploit leading to data breach",
+        "likelihood": "Medium",
+        "severity": "Critical",
+        "priority": "Critical"
+      },
+      {
+        "risk": "DDoS attack causing service unavailability",
+        "likelihood": "High",
+        "severity": "High",
+        "priority": "High"
+      },
+      {
+        "risk": "Unauthorized administrative access via compromised credentials",
+        "likelihood": "Low",
+        "severity": "Critical",
+        "priority": "High"
+      }
+    ]
   },
   {
     "id": 2,
@@ -21,6 +42,21 @@
     "owner": "Network Team",
     "openIncidentCount": 0,
     "lastIncidentDate": null,
-    "lastScanned": "2026-06-20T07:15:13.571Z"
+    "lastScanned": "2026-06-20T07:15:13.571Z",
+    "description": "Perimeter firewall enforcing network segmentation and access control policies for all inbound and outbound traffic.",
+    "risks": [
+      {
+        "risk": "Firewall rule misconfiguration exposing internal services",
+        "likelihood": "Medium",
+        "severity": "High",
+        "priority": "High"
+      },
+      {
+        "risk": "Firmware vulnerability allowing bypass of security controls",
+        "likelihood": "Low",
+        "severity": "Critical",
+        "priority": "High"
+      }
+    ]
   }
 ]

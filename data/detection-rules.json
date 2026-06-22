@@ -7,7 +7,8 @@
     "attackType": "C2 Communication",
     "ruleLogic": "alert tcp any any -> any any (msg:\"C2 Beaconing\"; threshold:type both, track by_src, count 5, seconds 60;)",
     "lastUpdated": "2026-06-15",
-    "createdBy": "Bob Martinez"
+    "createdBy": "Bob Martinez",
+    "csfFunction": "DE"
   },
   {
     "id": 2,
@@ -17,6 +18,7 @@
     "attackType": "SQL Injection",
     "ruleLogic": "alert tcp any any -> any 80 (msg:\"SQL Injection\"; content:\"union select\"; nocase;)",
     "lastUpdated": "2026-06-10",
-    "createdBy": "Carol Nguyen"
+    "createdBy": "Carol Nguyen",
+    "csfFunction": "PR"
   }
 ]

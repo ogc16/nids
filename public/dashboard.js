@@ -99,6 +99,47 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
       });
+
+      if (chartInstances.csf) chartInstances.csf.destroy();
+      chartInstances.csf = new Chart(document.getElementById('csfChart'), {
+        type: 'radar',
+        data: {
+          labels: ['Govern', 'Identify', 'Protect', 'Detect', 'Respond', 'Recover'],
+          datasets: [
+            {
+              label: 'Incidents',
+              data: [stats.csfIncidentCounts.GV || 0, stats.csfIncidentCounts.ID || 0, stats.csfIncidentCounts.PR || 0, stats.csfIncidentCounts.DE || 0, stats.csfIncidentCounts.RS || 0, stats.csfIncidentCounts.RC || 0],
+              backgroundColor: 'rgba(88,166,255,0.1)',
+              borderColor: '#58a6ff',
+              borderWidth: 2,
+              pointBackgroundColor: '#58a6ff'
+            },
+            {
+              label: 'Rules',
+              data: [stats.csfRuleCounts.GV || 0, stats.csfRuleCounts.ID || 0, stats.csfRuleCounts.PR || 0, stats.csfRuleCounts.DE || 0, stats.csfRuleCounts.RS || 0, stats.csfRuleCounts.RC || 0],
+              backgroundColor: 'rgba(63,185,80,0.1)',
+              borderColor: '#3fb950',
+              borderWidth: 2,
+              pointBackgroundColor: '#3fb950'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#8b949e' } }
+          },
+          scales: {
+            r: {
+              beginAtZero: true,
+              ticks: { color: '#8b949e', backdropColor: 'transparent' },
+              grid: { color: 'rgba(48,54,61,0.3)' },
+              angleLines: { color: 'rgba(48,54,61,0.3)' },
+              pointLabels: { color: '#8b949e' }
+            }
+          }
+        }
+      });
     } catch (err) {
       showToast('Failed to load dashboard data', 'error');
     }

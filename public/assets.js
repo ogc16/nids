@@ -77,9 +77,13 @@ function renderAssetGroup(elementId, items, countId, incidents) {
     el.innerHTML = '<div class="group-item" style="justify-content:center;color:var(--text-secondary);cursor:default">No assets</div>';
     return;
   }
-  el.innerHTML = items.map(item => {
+    el.innerHTML = items.map(item => {
     const linked = getLinkedIncidentsStatic(item, incidents || []);
     const openCount = linked.filter(i => i.status !== 'Resolved' && i.status !== 'Closed').length;
+    const risks = item.risks || [];
+    const riskSummary = risks.length > 0
+      ? risks.map(r => `<span class="tag tag-${r.priority.toLowerCase()}">${r.risk.substring(0, 30)}${r.risk.length > 30 ? '...' : ''}</span>`).join(' ')
+      : '';
     return `
       <div class="group-item" data-id="${item.id}">
         <div class="item-main">
@@ -98,6 +102,7 @@ function renderAssetGroup(elementId, items, countId, incidents) {
             <span>&#8226;</span>
             <span>Scanned: ${formatDate(item.lastScanned)}</span>
           </div>
+          ${riskSummary ? `<div class="item-meta" style="margin-top:4px">${riskSummary}</div>` : ''}
         </div>
         <div class="item-actions">
           <button class="btn btn-primary btn-sm edit-asset" data-id="${item.id}">Edit</button>
@@ -132,8 +137,30 @@ function renderAssetGroup(elementId, items, countId, incidents) {
         const item = await apiFetch(`/network-assets/${id}`);
         const backdrop = document.createElement('div');
         backdrop.className = 'modal-backdrop';
-        backdrop.innerHTML = `
-          <div class="modal">
+          const existingRisks = item.risks || [];
+          const riskInputs = existingRisks.map((r, i) => `
+            <div class="risk-entry" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+              <div class="form-group" style="margin-bottom:6px">
+                <label style="font-size:11px">Risk Description</label>
+                <input type="text" class="form-control edit-risk-desc" value="${r.risk}" style="font-size:12px">
+              </div>
+              <div style="display:flex;gap:6px">
+                <select class="form-control edit-risk-likelihood" style="font-size:11px;padding:4px 6px">
+                  ${['Very Low','Low','Medium','High','Very High'].map(o => `<option ${r.likelihood === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>
+                <select class="form-control edit-risk-severity" style="font-size:11px;padding:4px 6px">
+                  ${['Low','Medium','High','Critical'].map(o => `<option ${r.severity === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>
+                <select class="form-control edit-risk-priority" style="font-size:11px;padding:4px 6px">
+                  ${['Low','Medium','High','Critical'].map(o => `<option ${r.priority === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-danger btn-sm edit-remove-risk" style="padding:2px 8px;font-size:11px">X</button>
+              </div>
+            </div>
+          `).join('');
+
+          backdrop.innerHTML = `
+          <div class="modal" style="width:600px">
             <div class="modal-header">
               <h3>Edit Asset: ${item.assetName}</h3>
               <button class="modal-close">&times;</button>
@@ -186,6 +213,15 @@ function renderAssetGroup(elementId, items, countId, incidents) {
                   <input type="text" id="editOwner" class="form-control" value="${item.owner}">
                 </div>
               </div>
+              <div class="form-group">
+                <label>Description</label>
+                <textarea id="editDescription" class="form-control" style="min-height:50px;font-size:12px">${item.description || ''}</textarea>
+              </div>
+              <div style="margin-top:12px">
+                <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px">Risk Assessment</label>
+                <div id="editRisksContainer">${riskInputs}</div>
+                <button type="button" id="editAddRiskBtn" class="btn btn-secondary btn-sm" style="margin-top:4px">+ Add Risk</button>
+              </div>
               <div class="form-actions" style="margin-top:16px">
                 <button id="saveEditAsset" class="btn btn-primary">Save Changes</button>
                 <button class="btn btn-secondary modal-close">Cancel</button>
@@ -197,14 +233,56 @@ function renderAssetGroup(elementId, items, countId, incidents) {
         backdrop.querySelectorAll('.modal-close').forEach(b => b.onclick = () => backdrop.remove());
         backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
 
+        document.getElementById('editAddRiskBtn').onclick = () => {
+          const container = document.getElementById('editRisksContainer');
+          const entry = document.createElement('div');
+          entry.className = 'risk-entry';
+          entry.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px';
+          entry.innerHTML = `
+            <div class="form-group" style="margin-bottom:6px">
+              <label style="font-size:11px">Risk Description</label>
+              <input type="text" class="form-control edit-risk-desc" placeholder="Describe the risk" style="font-size:12px">
+            </div>
+            <div style="display:flex;gap:6px">
+              <select class="form-control edit-risk-likelihood" style="font-size:11px;padding:4px 6px">
+                <option>Very Low</option><option>Low</option><option selected>Medium</option><option>High</option><option>Very High</option>
+              </select>
+              <select class="form-control edit-risk-severity" style="font-size:11px;padding:4px 6px">
+                <option>Low</option><option>Medium</option><option>High</option><option>Critical</option>
+              </select>
+              <select class="form-control edit-risk-priority" style="font-size:11px;padding:4px 6px">
+                <option>Low</option><option>Medium</option><option>High</option><option>Critical</option>
+              </select>
+              <button type="button" class="btn btn-danger btn-sm remove-risk" style="padding:2px 8px;font-size:11px">X</button>
+            </div>
+          `;
+          container.appendChild(entry);
+        };
+
+        document.getElementById('editRisksContainer').addEventListener('click', (e) => {
+          if (e.target.classList.contains('remove-risk')) {
+            e.target.closest('.risk-entry').remove();
+          }
+        });
+
         document.getElementById('saveEditAsset').onclick = async () => {
+          const riskEntries = document.querySelectorAll('#editRisksContainer .risk-entry');
+          const risks = Array.from(riskEntries).map(entry => ({
+            risk: entry.querySelector('.edit-risk-desc').value,
+            likelihood: entry.querySelector('.edit-risk-likelihood').value,
+            severity: entry.querySelector('.edit-risk-severity').value,
+            priority: entry.querySelector('.edit-risk-priority').value
+          })).filter(r => r.risk.trim());
+
           const updates = {
             assetName: document.getElementById('editAssetName').value,
             ipRange: document.getElementById('editIpRange').value,
             type: document.getElementById('editType').value,
             riskLevel: document.getElementById('editRiskLevel').value,
             monitoringStatus: document.getElementById('editMonitoringStatus').value,
-            owner: document.getElementById('editOwner').value
+            owner: document.getElementById('editOwner').value,
+            description: document.getElementById('editDescription').value,
+            risks
           };
           try {
             await apiFetch(`/network-assets/${id}`, { method: 'PUT', body: JSON.stringify(updates) });
@@ -239,6 +317,20 @@ function renderAssetGroup(elementId, items, countId, incidents) {
             ).join('')
           : '<span style="color:var(--text-secondary)">No linked incidents</span>';
 
+        const risks = item.risks || [];
+        const riskRows = risks.length > 0
+          ? risks.map(r => `
+              <div style="background:var(--bg-secondary);border-radius:6px;padding:10px;margin-bottom:8px">
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px">${r.risk}</div>
+                <div style="display:flex;gap:8px;font-size:11px;color:var(--text-secondary)">
+                  <span>Likelihood: <span class="tag tag-${r.likelihood === 'Very High' || r.likelihood === 'High' ? 'high' : r.likelihood === 'Medium' ? 'medium' : 'low'}">${r.likelihood}</span></span>
+                  <span>Severity: <span class="tag tag-${r.severity.toLowerCase()}">${r.severity}</span></span>
+                  <span>Priority: <span class="tag tag-${r.priority.toLowerCase()}">${r.priority}</span></span>
+                </div>
+              </div>
+            `).join('')
+          : '<span style="color:var(--text-secondary)">No risks identified</span>';
+
         openModal(`Asset #${item.id}: ${item.assetName}`, [
           { label: 'Asset Name', value: item.assetName },
           { label: 'IP Range', value: item.ipRange },
@@ -246,6 +338,8 @@ function renderAssetGroup(elementId, items, countId, incidents) {
           { label: 'Monitoring Status', value: `<span class="health-dot ${monitoringClass(item.monitoringStatus)}"></span>${item.monitoringStatus}` },
           { label: 'Risk Level', value: `<span class="tag ${riskClass(item.riskLevel)}">${item.riskLevel}</span>` },
           { label: 'Owner', value: item.owner },
+          { label: 'Description', value: item.description || 'None' },
+          { label: 'Risk Analysis', value: riskRows },
           { label: 'Open Incidents', value: `${item.openIncidentCount || 0}` },
           { label: 'Last Incident', value: item.lastIncidentDate ? formatDate(item.lastIncidentDate) : 'None' },
           { label: 'Last Scanned', value: formatDate(item.lastScanned) },

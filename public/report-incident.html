@@ -26,6 +26,14 @@
           <a href="/threat-intel.html" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
         </div>
         <div class="nav-section">
+          <div class="nav-section-title">Framework</div>
+          <a href="/framework.html" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Plan</div>
+          <a href="/security-plan.html" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
           <div class="nav-section-title">Automation</div>
           <a href="/playbooks.html" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
         </div>
@@ -119,13 +127,22 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label for="csfFunction">NIST CSF Function</label>
+              <select id="csfFunction" class="form-control">
+                <option value="">Select CSF function...</option>
+                <option value="GV">Govern</option>
+                <option value="ID">Identify</option>
+                <option value="PR">Protect</option>
+                <option value="DE">Detect</option>
+                <option value="RS">Respond</option>
+                <option value="RC">Recover</option>
+              </select>
+              <div class="hint">Map this incident to a NIST Cybersecurity Framework function</div>
+            </div>
+            <div class="form-group">
               <label for="cvssScore">CVSS Score</label>
               <input type="number" id="cvssScore" class="form-control" placeholder="e.g., 7.5" min="0" max="10" step="0.1">
               <div class="hint">Common Vulnerability Scoring System (0-10)</div>
-            </div>
-            <div class="form-group">
-              <label for="assignee">&nbsp;</label>
-              <div style="padding-top:8px;font-size:11px;color:var(--text-secondary)">Leave empty if not assessed</div>
             </div>
           </div>
 
@@ -180,7 +197,8 @@
           detectedAt: new Date().toISOString(),
           description: form.description.value,
           resolutionNotes: '',
-          cvssScore: form.cvssScore.value ? parseFloat(form.cvssScore.value) : null
+          cvssScore: form.cvssScore.value ? parseFloat(form.cvssScore.value) : null,
+          csfFunction: form.csfFunction.value || null
         };
 
         try {

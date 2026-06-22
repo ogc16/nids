@@ -1,14 +1,57 @@
 const API_BASE = '/api';
 
+function getToken() {
+  return localStorage.getItem('nids_token');
+}
+
+function setToken(token) {
+  if (token) localStorage.setItem('nids_token', token);
+  else localStorage.removeItem('nids_token');
+}
+
+function getCurrentUser() {
+  try { return JSON.parse(localStorage.getItem('nids_user')); } catch { return null; }
+}
+
+function setCurrentUser(user) {
+  if (user) localStorage.setItem('nids_user', JSON.stringify(user));
+  else localStorage.removeItem('nids_user');
+}
+
 async function apiFetch(path, options = {}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const res = await fetch(url, { headers, ...options });
+
+  if (res.status === 401 && !path.includes('/auth/login')) {
+    setToken(null);
+    setCurrentUser(null);
+    const loginPage = '/login.html';
+    if (!window.location.pathname.includes('login.html')) {
+      window.location.href = loginPage;
+    }
+    throw new Error('Authentication required');
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API error: ${res.status}`);
+  }
+
   if (res.status === 204) return null;
-  return res.json();
+
+  const data = await res.json();
+
+  // Auto-unwrap paginated responses for transparent backward compat
+  if (data && typeof data === 'object' && Array.isArray(data.items) && data.pagination) {
+    data.items._pagination = data.pagination;
+    return data.items;
+  }
+
+  return data;
 }
 
 function showToast(message, type = 'success') {
@@ -19,7 +62,7 @@ function showToast(message, type = 'success') {
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  setTimeout(() => toast.remove(), 4500);
 }
 
 function formatDate(dateStr) {
@@ -92,22 +135,23 @@ function connectSSE() {
   const es = new EventSource('/api/events');
   es.addEventListener('traffic-flow', (e) => {
     const flow = JSON.parse(e.data);
-    const event = new CustomEvent('new-traffic-flow', { detail: flow });
-    document.dispatchEvent(event);
+    document.dispatchEvent(new CustomEvent('new-traffic-flow', { detail: flow }));
   });
   es.addEventListener('incident-created', (e) => {
-    const incident = JSON.parse(e.data);
-    const event = new CustomEvent('new-incident', { detail: incident });
-    document.dispatchEvent(event);
+    document.dispatchEvent(new CustomEvent('new-incident', { detail: JSON.parse(e.data) }));
   });
   es.addEventListener('automation-event', (e) => {
-    const auto = JSON.parse(e.data);
-    const event = new CustomEvent('new-automation', { detail: auto });
-    document.dispatchEvent(event);
+    document.dispatchEvent(new CustomEvent('new-automation', { detail: JSON.parse(e.data) }));
   });
   es.onerror = () => { setTimeout(connectSSE, 3000); };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  connectSSE();
+  if (!window.location.pathname.includes('login.html')) {
+    if (!getToken()) {
+      window.location.href = '/login.html';
+      return;
+    }
+    connectSSE();
+  }
 });

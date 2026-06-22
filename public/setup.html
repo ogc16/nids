@@ -43,6 +43,14 @@
           <a href="/threat-intel.html" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
         </div>
         <div class="nav-section">
+          <div class="nav-section-title">Framework</div>
+          <a href="/framework.html" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Plan</div>
+          <a href="/security-plan.html" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
           <div class="nav-section-title">Automation</div>
           <a href="/playbooks.html" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
         </div>
@@ -177,6 +185,8 @@
               <div class="stat-card-small"><div class="stat-value">-</div><div class="stat-label">Traffic Flows</div></div>
               <div class="stat-card-small"><div class="stat-value">-</div><div class="stat-label">Playbooks</div></div>
               <div class="stat-card-small"><div class="stat-value">-</div><div class="stat-label">Tasks</div></div>
+              <div class="stat-card-small"><div class="stat-value">-</div><div class="stat-label">Policies</div></div>
+              <div class="stat-card-small"><div class="stat-value">-</div><div class="stat-label">Standards</div></div>
             </div>
           </div>
         </div>
@@ -214,14 +224,18 @@
         try {
           const stats = await apiFetch('/stats');
           const statEls = document.querySelectorAll('#workspaceStats .stat-card-small');
-          const labels = ['Incidents', 'Rules', 'Assets', 'Traffic Flows', 'Playbooks', 'Tasks'];
-          const values = [stats.totalIncidents, stats.activeRules || '-', stats.criticalAssets || '-', stats.totalTrafficFlows || '-', '-', stats.openTasks || '-'];
-          try {
-            const playbooks = await apiFetch('/playbooks');
-            values[4] = playbooks.length;
-          } catch {}
+          const values = [
+            stats.totalIncidents || 0,
+            stats.activeRules || 0,
+            stats.criticalAssets || 0,
+            stats.totalTrafficFlows || 0,
+            stats.totalPlaybooks || 0,
+            stats.openTasks || 0,
+            stats.totalPolicies || 0,
+            stats.totalStandards || 0
+          ];
           statEls.forEach((el, i) => {
-            el.querySelector('.stat-value').textContent = values[i] || 0;
+            if (values[i] !== undefined) el.querySelector('.stat-value').textContent = values[i];
           });
         } catch {}
       }

@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "name": "C2 Detection Standard",
+    "category": "Detection",
+    "status": "Active",
+    "version": "1.0",
+    "csfFunction": "DE",
+    "description": "All C2 beaconing detection rules must threshold on 5+ connections to the same external IP within 60 seconds before generating an alert.",
+    "createdBy": "Bob Martinez",
+    "lastReviewed": "2026-06-10",
+    "framework": "NIST SP 800-61"
+  },
+  {
+    "id": 2,
+    "name": "Incident Severity Classification",
+    "category": "Incident Response",
+    "status": "Active",
+    "version": "2.0",
+    "csfFunction": "RS",
+    "description": "Incidents are classified as Critical (CVSS 9-10, active C2, data exfiltration), High (CVSS 7-8.9, SQLi with data access), Medium (CVSS 4-6.9, scanning), or Low (CVSS 0-3.9, policy violations).",
+    "createdBy": "Alice Chen",
+    "lastReviewed": "2026-05-01",
+    "framework": "NIST SP 800-61"
+  },
+  {
+    "id": 3,
+    "name": "Asset Risk Classification Standard",
+    "category": "Asset Management",
+    "status": "Active",
+    "version": "1.2",
+    "csfFunction": "ID",
+    "description": "Network assets are classified as Critical (public-facing, contains PII), High (internal servers, AD), Medium (workstations), or Low (IoT, test devices). Classification drives monitoring and patching SLAs.",
+    "createdBy": "Carol Nguyen",
+    "lastReviewed": "2026-03-20",
+    "framework": "NIST SP 800-53"
+  }
+]

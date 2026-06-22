@@ -26,6 +26,14 @@
           <a href="/threat-intel.html" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
         </div>
         <div class="nav-section">
+          <div class="nav-section-title">Framework</div>
+          <a href="/framework.html" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Plan</div>
+          <a href="/security-plan.html" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
           <div class="nav-section-title">Automation</div>
           <a href="/playbooks.html" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
         </div>
@@ -117,6 +125,66 @@
             <input type="text" id="owner" class="form-control" placeholder="e.g., Platform Engineering" required>
           </div>
 
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" class="form-control" placeholder="Describe the asset's purpose, data sensitivity, and business context..." style="min-height:70px"></textarea>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div class="card-header">Risk Assessment</div>
+            <div class="card-body">
+              <div id="risksContainer">
+                <div class="risk-entry" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px">
+                  <div class="form-group" style="margin-bottom:8px">
+                    <label style="font-size:12px">Risk Description</label>
+                    <input type="text" class="form-control risk-desc" placeholder="e.g., Web application vulnerability exploit">
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label style="font-size:12px">Likelihood</label>
+                      <select class="form-control risk-likelihood">
+                        <option value="Very Low">Very Low</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="High">High</option>
+                        <option value="Very High">Very High</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:12px">Severity</label>
+                      <select class="form-control risk-severity">
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical" selected>Critical</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label style="font-size:12px">Priority</label>
+                      <select class="form-control risk-priority">
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical" selected>Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-danger btn-sm remove-risk" style="margin-top:6px">Remove</button>
+                </div>
+              </div>
+              <button type="button" id="addRiskBtn" class="btn btn-secondary btn-sm">+ Add Risk</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Network Scan</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button type="button" id="scanBtn" class="btn btn-secondary">Scan Network</button>
+              <span id="scanStatus" style="font-size:12px;color:var(--text-secondary)"></span>
+            </div>
+            <div id="scanResults" style="display:none;margin-top:12px"></div>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Add Asset</button>
             <a href="/assets.html" class="btn btn-secondary">Cancel</a>
@@ -128,9 +196,122 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      const scanBtn = document.getElementById('scanBtn');
+      const scanStatus = document.getElementById('scanStatus');
+      const scanResults = document.getElementById('scanResults');
+
+      scanBtn.onclick = async () => {
+        const ipRange = document.getElementById('ipRange').value.trim();
+        if (!ipRange) {
+          showToast('Enter an IP address or range first', 'error');
+          return;
+        }
+        scanBtn.disabled = true;
+        scanBtn.textContent = 'Scanning...';
+        scanStatus.textContent = 'Scanning network, please wait...';
+        scanResults.style.display = 'none';
+
+        try {
+          const result = await apiFetch('/network-assets/scan', {
+            method: 'POST',
+            body: JSON.stringify({ ipRange })
+          });
+          scanResults.style.display = 'block';
+          const portHtml = result.openPorts.length
+            ? result.openPorts.map(p => `<span class="tag tag-${p.service.toLowerCase()}">Port ${p.port} (${p.service})</span>`).join(' ')
+            : '<span style="color:var(--text-secondary)">No open ports detected</span>';
+
+          scanResults.innerHTML = `
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+                <div><span style="color:var(--text-secondary)">Status:</span> <span style="color:${result.reachable ? 'var(--accent-green)' : 'var(--accent-red)'}">${result.reachable ? 'Reachable' : 'Unreachable'}</span></div>
+                <div><span style="color:var(--text-secondary)">Hostname:</span> ${result.hostname || '-'}</div>
+                <div><span style="color:var(--text-secondary)">Ping:</span> ${result.pingMs ? result.pingMs + 'ms' : '-'}</div>
+                <div><span style="color:var(--text-secondary)">MAC:</span> ${result.macAddress || '-'}</div>
+                <div><span style="color:var(--text-secondary)">OS:</span> ${result.osHints || '-'}</div>
+                <div><span style="color:var(--text-secondary)">Scan time:</span> ${result.scanDuration}s</div>
+              </div>
+              <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${portHtml}</div>
+            </div>
+          `;
+
+          if (result.reachable) {
+            document.getElementById('monitoringStatus').value = 'Online';
+          }
+          scanStatus.textContent = 'Scan complete';
+        } catch (err) {
+          scanResults.style.display = 'block';
+          scanResults.innerHTML = `<div style="color:var(--accent-red);font-size:13px">Scan failed: ${err.message}</div>`;
+          scanStatus.textContent = 'Scan failed';
+        } finally {
+          scanBtn.disabled = false;
+          scanBtn.textContent = 'Scan Network';
+        }
+      };
+
+      document.getElementById('addRiskBtn').onclick = () => {
+        const container = document.getElementById('risksContainer');
+        const entry = document.createElement('div');
+        entry.className = 'risk-entry';
+        entry.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px';
+        entry.innerHTML = `
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="font-size:12px">Risk Description</label>
+            <input type="text" class="form-control risk-desc" placeholder="e.g., Unpatched software vulnerability">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label style="font-size:12px">Likelihood</label>
+              <select class="form-control risk-likelihood">
+                <option value="Very Low">Very Low</option>
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Very High">Very High</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="font-size:12px">Severity</label>
+              <select class="form-control risk-severity">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="font-size:12px">Priority</label>
+              <select class="form-control risk-priority">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm remove-risk" style="margin-top:6px">Remove</button>
+        `;
+        entry.querySelector('.remove-risk').onclick = () => entry.remove();
+        container.appendChild(entry);
+      };
+
+      document.getElementById('risksContainer').addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-risk')) {
+          e.target.closest('.risk-entry').remove();
+        }
+      });
+
       document.getElementById('assetForm').onsubmit = async (e) => {
         e.preventDefault();
         const form = e.target;
+        const riskEntries = document.querySelectorAll('.risk-entry');
+        const risks = Array.from(riskEntries).map(entry => ({
+          risk: entry.querySelector('.risk-desc').value,
+          likelihood: entry.querySelector('.risk-likelihood').value,
+          severity: entry.querySelector('.risk-severity').value,
+          priority: entry.querySelector('.risk-priority').value
+        })).filter(r => r.risk.trim());
+
         const data = {
           assetName: form.assetName.value,
           ipRange: form.ipRange.value,
@@ -138,6 +319,8 @@
           riskLevel: form.riskLevel.value,
           monitoringStatus: form.monitoringStatus.value,
           owner: form.owner.value,
+          description: form.description.value,
+          risks,
           openIncidentCount: 0,
           lastIncidentDate: null,
           lastScanned: new Date().toISOString()

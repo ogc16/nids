@@ -1,3 +1,9 @@
+function csfTag(csfId) {
+  if (!csfId) return '';
+  const names = { GV: 'Govern', ID: 'Identify', PR: 'Protect', DE: 'Detect', RS: 'Respond', RC: 'Recover' };
+  return `<span class="tag tag-csf-${csfId.toLowerCase()}">${names[csfId] || csfId}</span>`;
+}
+
 function ruleStatusClass(status) {
   if (status === 'Active') return 'tag-active';
   if (status === 'In Development') return 'tag-development';
@@ -24,27 +30,28 @@ function renderRuleGroup(elementId, items, countId) {
     el.innerHTML = '<div class="group-item" style="justify-content:center;color:var(--text-secondary);cursor:default">No rules</div>';
     return;
   }
-  el.innerHTML = items.map(item => `
-    <div class="group-item" data-id="${item.id}">
-      <div class="item-main">
-        <div class="item-title">${item.name}</div>
-        <div class="item-meta">
-          <span class="tag ${ruleStatusClass(item.status)}">${item.status}</span>
-          <span class="tag tag-${item.priority.toLowerCase()}">${item.priority}</span>
-          <span>${item.protocol}</span>
-          <span>&#8226;</span>
-          <span>${item.threatCategory}</span>
-          <span>&#8226;</span>
-          <span>FP: ${item.falsePositiveRate}%</span>
-          <span>&#8226;</span>
-          <span>Updated: ${formatDateShort(item.lastUpdated)}</span>
+    el.innerHTML = items.map(item => `
+      <div class="group-item" data-id="${item.id}">
+        <div class="item-main">
+          <div class="item-title">${item.name}</div>
+          <div class="item-meta">
+            <span class="tag ${ruleStatusClass(item.status)}">${item.status}</span>
+            <span class="tag tag-${item.priority.toLowerCase()}">${item.priority}</span>
+            ${csfTag(item.csfFunction)}
+            <span>${item.protocol}</span>
+            <span>&#8226;</span>
+            <span>${item.threatCategory}</span>
+            <span>&#8226;</span>
+            <span>FP: ${item.falsePositiveRate}%</span>
+            <span>&#8226;</span>
+            <span>Updated: ${formatDateShort(item.lastUpdated)}</span>
+          </div>
+        </div>
+        <div class="item-actions">
+          <button class="btn btn-secondary btn-sm view-rule" data-id="${item.id}">Details</button>
         </div>
       </div>
-      <div class="item-actions">
-        <button class="btn btn-secondary btn-sm view-rule" data-id="${item.id}">Details</button>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
 
   el.querySelectorAll('.view-rule').forEach(btn => {
     btn.onclick = async (e) => {
@@ -52,15 +59,16 @@ function renderRuleGroup(elementId, items, countId) {
       const id = btn.dataset.id;
       try {
         const item = await apiFetch(`/detection-rules/${id}`);
-        openModal(`Rule #${item.id}: ${item.name}`, [
-          { label: 'Name', value: item.name },
-          { label: 'Status', value: `<span class="tag ${ruleStatusClass(item.status)}">${item.status}</span>` },
-          { label: 'Protocol', value: item.protocol },
-          { label: 'Threat Category', value: item.threatCategory },
-          { label: 'Priority', value: `<span class="tag tag-${item.priority.toLowerCase()}">${item.priority}</span>` },
-          { label: 'Last Updated', value: formatDateShort(item.lastUpdated) },
-          { label: 'False Positive Rate', value: `${item.falsePositiveRate}%` }
-        ]);
+          openModal(`Rule #${item.id}: ${item.name}`, [
+            { label: 'Name', value: item.name },
+            { label: 'Status', value: `<span class="tag ${ruleStatusClass(item.status)}">${item.status}</span>` },
+            { label: 'NIST CSF Function', value: csfTag(item.csfFunction) },
+            { label: 'Protocol', value: item.protocol },
+            { label: 'Threat Category', value: item.threatCategory },
+            { label: 'Priority', value: `<span class="tag tag-${item.priority.toLowerCase()}">${item.priority}</span>` },
+            { label: 'Last Updated', value: formatDateShort(item.lastUpdated) },
+            { label: 'False Positive Rate', value: `${item.falsePositiveRate}%` }
+          ]);
       } catch (err) {
         showToast('Failed to load rule details', 'error');
       }

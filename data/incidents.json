@@ -11,7 +11,8 @@
     "description": "Repeated beaconing to known malicious IP range",
     "resolutionNotes": "",
     "cvssScore": 9.8,
-    "ruleId": 1
+    "ruleId": 1,
+    "csfFunction": "DE"
   },
   {
     "id": 2,
@@ -25,6 +26,7 @@
     "description": "SQLi payload detected in login form",
     "resolutionNotes": "WAF blocking triggered",
     "cvssScore": 8.5,
-    "ruleId": 2
+    "ruleId": 2,
+    "csfFunction": "PR"
   }
 ]

@@ -1,6 +1,13 @@
+function csfTag(csfId) {
+  if (!csfId) return '';
+  const names = { GV: 'Govern', ID: 'Identify', PR: 'Protect', DE: 'Detect', RS: 'Respond', RC: 'Recover' };
+  return `<span class="tag tag-csf-${csfId.toLowerCase()}">${names[csfId] || csfId}</span>`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const severityFilter = document.getElementById('severityFilter');
   const statusFilter = document.getElementById('statusFilter');
+  const csfFilter = document.getElementById('csfFilter');
   const searchInput = document.getElementById('searchInput');
 
   async function loadIncidents() {
@@ -9,10 +16,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const sev = severityFilter.value;
       const stat = statusFilter.value;
+      const csf = csfFilter.value;
       const search = searchInput.value.toLowerCase();
 
       if (sev) data = data.filter(i => i.severity === sev);
       if (stat) data = data.filter(i => i.status === stat);
+      if (csf) data = data.filter(i => i.csfFunction === csf);
       if (search) data = data.filter(i =>
         i.title.toLowerCase().includes(search) ||
         i.sourceIp.toLowerCase().includes(search) ||
@@ -48,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="item-meta">
             ${severityTag(item.severity)}
             ${statusTag(item.status)}
+            ${csfTag(item.csfFunction)}
             <span>${item.attackType}</span>
             <span>&#8226;</span>
             <span>${item.sourceIp}</span>
@@ -73,6 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             { label: 'Title', value: item.title },
             { label: 'Severity', value: severityTag(item.severity) },
             { label: 'Status', value: statusTag(item.status) },
+            { label: 'NIST CSF Function', value: csfTag(item.csfFunction)  },
             { label: 'Source IP', value: item.sourceIp },
             { label: 'Attack Type', value: item.attackType },
             { label: 'Assignee', value: item.assignee },
@@ -89,6 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   severityFilter.onchange = loadIncidents;
   statusFilter.onchange = loadIncidents;
+  csfFilter.onchange = loadIncidents;
   searchInput.oninput = loadIncidents;
 
   loadIncidents();

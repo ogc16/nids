@@ -1,2 +1,5 @@
 node_modules/
 .env
+data/audit-log.jsonl
+data/users.json
+data/automations-log.json
