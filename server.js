@@ -554,6 +554,146 @@ app.post('/api/network-assets/scan', authenticate, authorize('admin', 'analyst')
   res.json(result);
 });
 
+// ---- Asset Log Collection ----
+const LOG_SOURCES = {
+  Server: {
+    types: ['auth.log', 'syslog', 'web-access.log', 'app-error.log', 'audit.log'],
+    samplePatterns: [
+      { level: 'info', msg: 'Accepted publickey for admin from 10.0.1.10 port 22' },
+      { level: 'info', msg: 'Session opened for user www-data by (uid=0)' },
+      { level: 'warn', msg: 'Failed password for root from 203.0.113.50 port 22' },
+      { level: 'error', msg: 'PHP Fatal error: Uncaught Exception: Connection timeout in /var/www/app/db.php:45' },
+      { level: 'info', msg: 'GET /api/users 200 45ms' },
+      { level: 'info', msg: 'POST /api/login 401 12ms' },
+      { level: 'warn', msg: 'Rate limit exceeded for IP 198.51.100.33' },
+      { level: 'error', msg: 'Database connection pool exhausted' },
+      { level: 'info', msg: 'TLS handshake completed with cipher ECDHE-RSA-AES256-GCM-SHA384' },
+      { level: 'warn', msg: 'Certificate will expire in 14 days' }
+    ]
+  },
+  Firewall: {
+    types: ['fw-traffic.log', 'fw-allow.log', 'fw-deny.log', 'fw-nat.log', 'fw-vpn.log'],
+    samplePatterns: [
+      { level: 'info', msg: 'ALLOW TCP 10.0.1.45:49152 -> 185.220.101.22:443 (8.2.1.0/24 OUT)' },
+      { level: 'warn', msg: 'DENY TCP 203.0.113.50:33456 -> 10.0.1.5:22 (geo-block: CN)' },
+      { level: 'info', msg: 'ALLOW UDP 10.0.1.10:53 -> 8.8.8.8:53 (DNS query)' },
+      { level: 'error', msg: 'DENY TCP 198.51.100.22:44321 -> 10.0.1.5:3389 (brute-force threshold)' },
+      { level: 'info', msg: 'NAT mapping 10.0.1.5:443 -> 203.0.113.10:443' },
+      { level: 'warn', msg: 'VPN connection from 203.0.113.50 using expired certificate' },
+      { level: 'info', msg: 'IPS signature 2024-5678 matched on flow TCP 10.0.1.45:443 -> 10.0.2.10:443' },
+      { level: 'error', msg: 'Anomaly detected: 500+ SYNs/sec from 198.51.100.0/24' }
+    ]
+  },
+  Workstation: {
+    types: ['Security.evtx', 'System.evtx', 'Application.evtx', 'PowerShell-Operational.evtx'],
+    samplePatterns: [
+      { level: 'info', msg: 'Event 4624: An account was successfully logged on (admin@WORKSTATION-42)' },
+      { level: 'warn', msg: 'Event 4648: A logon was attempted using explicit credentials' },
+      { level: 'error', msg: 'Event 4688: A new process was created (cmd.exe /c net start)' },
+      { level: 'info', msg: 'Event 4656: A handle to an object was requested (C:\secret.key)' },
+      { level: 'warn', msg: 'Event 7036: Windows Defender real-time protection turned off' },
+      { level: 'error', msg: 'Event 1001: Windows Error Reporting - svchost.exe crashed' },
+      { level: 'info', msg: 'Event 6005: Event log service started' },
+      { level: 'warn', msg: 'Event 5157: Windows Filtering Platform blocked connection to 185.220.101.22:443' }
+    ]
+  },
+  Database: {
+    types: ['mysql-slow.log', 'postgresql.log', 'mssql-error.log', 'audit-trail.log'],
+    samplePatterns: [
+      { level: 'info', msg: 'CONNECT db=app_db user=app_user host=10.0.1.10 port=5432' },
+      { level: 'warn', msg: 'Slow query (2.3s): SELECT * FROM users WHERE email = ?' },
+      { level: 'error', msg: 'Connection rejected from 203.0.113.50: max_connections reached' },
+      { level: 'info', msg: 'QUERY: INSERT INTO audit_log (user_id, action) VALUES (42, \'login\')' },
+      { level: 'warn', msg: 'Failed login for user \'sa\' from host 198.51.100.22' },
+      { level: 'error', msg: 'Deadlock detected on transaction ID 84729, rolled back' }
+    ]
+  },
+  'Network Device': {
+    types: ['syslog', 'snmp-traps.log', 'config-change.log', 'interface.log'],
+    samplePatterns: [
+      { level: 'info', msg: 'Interface GigabitEthernet0/1 up (10.0.1.1/24)' },
+      { level: 'warn', msg: 'Interface GigabitEthernet0/2 CRC errors: 1423 packets discarded' },
+      { level: 'error', msg: 'BGP neighbor 10.0.255.1 state changed from ESTABLISHED to IDLE' },
+      { level: 'info', msg: 'OSPF adjacency established with 10.0.255.2 (area 0)' },
+      { level: 'warn', msg: 'CPU utilization at 87% for 5 minutes' },
+      { level: 'info', msg: 'Configuration committed by admin from 10.0.1.10' }
+    ]
+  },
+  Gateway: {
+    types: ['gateway-access.log', 'vpn-connections.log', 'proxy.log'],
+    samplePatterns: [
+      { level: 'info', msg: 'VPN tunnel established to remote site 203.0.113.5 (AES-256)' },
+      { level: 'warn', msg: 'VPN tunnel rekey failed, re-establishing' },
+      { level: 'error', msg: 'Proxy connection to 185.220.101.22:443 blocked (category: Malware)' },
+      { level: 'info', msg: 'Client 10.0.1.45 authenticated via certificate CN=alice.chen' },
+      { level: 'warn', msg: 'TLS interception failed for 203.0.113.50:443 (unsupported cipher)' }
+    ]
+  }
+};
+
+app.post('/api/network-assets/:id/collect-logs', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const assets = readTable('network-assets');
+  const asset = assets.find(a => a.id === parseInt(req.params.id));
+  if (!asset) return res.status(404).json({ error: 'Asset not found' });
+
+  const logSource = LOG_SOURCES[asset.type] || LOG_SOURCES.Server;
+  const totalEvents = Math.floor(Math.random() * 5000 + 500);
+  const suspiciousCount = Math.floor(Math.random() * totalEvents * 0.03 + 1);
+  const warningCount = Math.floor(Math.random() * totalEvents * 0.08 + 2);
+  const errorCount = Math.floor(Math.random() * totalEvents * 0.01 + 0);
+  const timeRangeHours = Math.floor(Math.random() * 24 + 1);
+  const collectedAt = new Date().toISOString();
+  const logStart = new Date(Date.now() - timeRangeHours * 3600000).toISOString();
+  const logEnd = collectedAt;
+
+  const sampleLogs = [];
+  const sampleCount = Math.min(50, totalEvents);
+  for (let i = 0; i < sampleCount; i++) {
+    const logType = logSource.types[Math.floor(Math.random() * logSource.types.length)];
+    const pattern = logSource.samplePatterns[Math.floor(Math.random() * logSource.samplePatterns.length)];
+    const timestamp = new Date(Date.now() - Math.floor(Math.random() * timeRangeHours * 3600000)).toISOString();
+    const srcIp = `${Math.floor(Math.random() * 223 + 1)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
+    sampleLogs.push({
+      timestamp, logType, level: pattern.level,
+      message: pattern.msg.replace(/\d+\.\d+\.\d+\.\d+/g, srcIp),
+      srcIp
+    });
+  }
+  sampleLogs.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  const collection = {
+    id: nextId(readTableSafe('asset-logs')),
+    assetId: asset.id,
+    assetName: asset.assetName,
+    collectedAt,
+    logSource: asset.type,
+    logTypes: logSource.types,
+    timeRange: { start: logStart, end: logEnd },
+    summary: { totalEvents, warnings: warningCount, errors: errorCount, suspicious: suspiciousCount },
+    samples: sampleLogs
+  };
+
+  const logs = readTableSafe('asset-logs');
+  logs.push(collection);
+  writeTable('asset-logs', logs);
+  audit('logs_collected', req, { assetId: asset.id, assetName: asset.assetName, totalEvents });
+
+  res.json(collection);
+});
+
+app.get('/api/asset-logs', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const logs = readTableSafe('asset-logs');
+  const assetId = parseInt(req.query.assetId);
+  let result = logs;
+  if (assetId) result = logs.filter(l => l.assetId === assetId);
+  res.json(result.reverse());
+});
+
+function readTableSafe(name) {
+  const file = path.join(DATA_DIR, `${name}.json`);
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; }
+}
+
 app.post('/api/network-traffic/simulate', authenticate, authorize('admin', 'analyst'), (req, res) => {
   const assets = readTable('network-assets');
   if (assets.length === 0) return res.status(400).json({ error: 'No assets found. Add an asset first.' });

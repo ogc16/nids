@@ -107,6 +107,7 @@ function renderAssetGroup(elementId, items, countId, incidents) {
         <div class="item-actions">
           <button class="btn btn-primary btn-sm edit-asset" data-id="${item.id}">Edit</button>
           <button class="btn btn-secondary btn-sm view-asset" data-id="${item.id}">Details</button>
+          <button class="btn btn-info btn-sm collect-logs" data-id="${item.id}" data-name="${item.assetName}">Collect Logs</button>
           <button class="btn btn-danger btn-sm delete-asset" data-id="${item.id}" data-name="${item.assetName}">Delete</button>
         </div>
       </div>
@@ -299,6 +300,25 @@ function renderAssetGroup(elementId, items, countId, incidents) {
     };
   });
 
+  el.querySelectorAll('.collect-logs').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const name = btn.dataset.name;
+      btn.disabled = true;
+      btn.textContent = 'Collecting...';
+      try {
+        const result = await apiFetch(`/network-assets/${id}/collect-logs`, { method: 'POST' });
+        showLogViewer(result);
+      } catch (err) {
+        showToast('Failed to collect logs: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Collect Logs';
+      }
+    };
+  });
+
   el.querySelectorAll('.view-asset').forEach(btn => {
     btn.onclick = async (e) => {
       e.stopPropagation();
@@ -351,3 +371,77 @@ function renderAssetGroup(elementId, items, countId, incidents) {
     };
   });
 }
+
+function showLogViewer(result) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+
+  const levelClass = (lvl) => {
+    if (lvl === 'error') return 'tag-critical';
+    if (lvl === 'warn') return 'tag-high';
+    return 'tag-active';
+  };
+  const levelLabel = (lvl) => {
+    if (lvl === 'error') return 'ERR';
+    if (lvl === 'warn') return 'WARN';
+    return 'INFO';
+  };
+
+  const summary = result.summary;
+  const sampleRows = result.samples.map(s => `
+    <tr>
+      <td style="white-space:nowrap;font-size:11px;color:var(--text-secondary)">${formatDate(s.timestamp)}</td>
+      <td style="font-size:11px">${s.logType}</td>
+      <td><span class="tag ${levelClass(s.level)}" style="font-size:10px;padding:1px 6px">${levelLabel(s.level)}</span></td>
+      <td style="font-size:12px;font-family:monospace;max-width:500px;overflow:hidden;text-overflow:ellipsis">${s.message}</td>
+      <td style="font-size:11px;color:var(--text-secondary)">${s.srcIp}</td>
+    </tr>
+  `).join('');
+
+  const timeSpan = new Date(result.timeRange.start).toLocaleString() + ' → ' + new Date(result.timeRange.end).toLocaleString();
+
+  backdrop.innerHTML = `
+    <div class="modal" style="width:900px;max-width:95vw">
+      <div class="modal-header">
+        <h3>Log Collection: ${result.assetName}</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <div class="stat-card-small" style="flex:1;min-width:100px"><div class="stat-value">${summary.totalEvents.toLocaleString()}</div><div class="stat-label">Total Events</div></div>
+          <div class="stat-card-small" style="flex:1;min-width:100px"><div class="stat-value" style="color:var(--accent-yellow)">${summary.warnings}</div><div class="stat-label">Warnings</div></div>
+          <div class="stat-card-small" style="flex:1;min-width:100px"><div class="stat-value" style="color:var(--accent-red)">${summary.errors}</div><div class="stat-label">Errors</div></div>
+          <div class="stat-card-small" style="flex:1;min-width:100px"><div class="stat-value" style="color:var(--accent-orange)">${summary.suspicious}</div><div class="stat-label">Suspicious</div></div>
+          <div class="stat-card-small" style="flex:1;min-width:100px"><div class="stat-value">${result.logSource}</div><div class="stat-label">Log Source</div></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+          Time Range: ${timeSpan} &bull; Log Types: ${result.logTypes.join(', ')}
+        </div>
+        <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="background:var(--bg-secondary);position:sticky;top:0">
+                <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600">Timestamp</th>
+                <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600">Type</th>
+                <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600">Level</th>
+                <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600">Message</th>
+                <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600">Source IP</th>
+              </tr>
+            </thead>
+            <tbody>${sampleRows}</tbody>
+          </table>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:8px">Showing ${result.samples.length} of ${summary.totalEvents.toLocaleString()} events</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-close">Close</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  backdrop.querySelectorAll('.modal-close').forEach(b => b.onclick = () => backdrop.remove());
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+  document.addEventListener('keydown', function handler(e) { if (e.key === 'Escape') { backdrop.remove(); document.removeEventListener('keydown', handler); } });
+}
+
