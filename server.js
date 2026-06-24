@@ -149,6 +149,97 @@ app.get('/api/network-traffic', optionalAuth, (req, res) => {
   res.json({ items, pagination: { page, limit, total: totalFiltered, totalFiltered, totalPages: Math.ceil(totalFiltered / limit) } });
 });
 
+// ---- Web Traffic Analytics ----
+function isWebFlow(f) { return f.httpMethod || (f.protocol && (f.protocol === 'HTTP' || f.protocol === 'HTTPS')); }
+
+app.get('/api/web-traffic/summary', optionalAuth, (req, res) => {
+  const traffic = readTable('network-traffic').filter(isWebFlow);
+  const methodDist = {}; const statusGroups = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 };
+  const uriCount = {}; const hostCount = {};
+  traffic.forEach(f => {
+    if (f.httpMethod) methodDist[f.httpMethod] = (methodDist[f.httpMethod] || 0) + 1;
+    if (f.httpStatus) statusGroups[Math.floor(f.httpStatus / 100) + 'xx'] = (statusGroups[Math.floor(f.httpStatus / 100) + 'xx'] || 0) + 1;
+    if (f.httpUri) uriCount[f.httpUri] = (uriCount[f.httpUri] || 0) + 1;
+    if (f.httpHost) hostCount[f.httpHost] = (hostCount[f.httpHost] || 0) + 1;
+  });
+  const topUris = Object.entries(uriCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uri, count]) => ({ uri, count }));
+  const topHosts = Object.entries(hostCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([host, count]) => ({ host, count }));
+  const errorCount = (statusGroups['4xx'] || 0) + (statusGroups['5xx'] || 0);
+  const total = traffic.length;
+  res.json({
+    totalRequests: total,
+    methodDistribution: Object.entries(methodDist).map(([method, count]) => ({ method, count })),
+    statusCodeGroups: statusGroups,
+    topUris,
+    topHosts,
+    errorRate: total > 0 ? parseFloat((errorCount / total * 100).toFixed(1)) : 0,
+    uniqueUris: Object.keys(uriCount).length,
+    uniqueHosts: Object.keys(hostCount).length
+  });
+});
+
+app.get('/api/web-traffic/requests', optionalAuth, (req, res) => {
+  let data = readTable('network-traffic').filter(isWebFlow);
+  const filter = req.query.displayFilter || '';
+  if (filter) {
+    try {
+      data = data.filter(item => {
+        try {
+          const tokens = filter.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+          return evaluateTokens(tokens, item);
+        } catch { return true; }
+      });
+    } catch {}
+  }
+  const method = req.query.method || ''; const status = req.query.status || '';
+  const search = req.query.search || '';
+  if (method) data = data.filter(f => f.httpMethod === method);
+  if (status) data = data.filter(f => String(f.httpStatus).startsWith(status));
+  if (search) data = data.filter(f => (f.httpUri || '').toLowerCase().includes(search) || (f.httpHost || '').toLowerCase().includes(search) || String(f.httpStatus).includes(search));
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(config.maxPageSize, Math.max(1, parseInt(req.query.limit) || config.defaultPageSize));
+  const totalFiltered = data.length;
+  const offset = (page - 1) * limit;
+  const items = data.slice(offset, offset + limit);
+  res.json({ items, pagination: { page, limit, total: totalFiltered, totalFiltered, totalPages: Math.ceil(totalFiltered / limit) } });
+});
+
+app.get('/api/web-traffic/top-uris', optionalAuth, (req, res) => {
+  const traffic = readTable('network-traffic').filter(isWebFlow);
+  const uriCount = {};
+  traffic.forEach(f => { if (f.httpUri) uriCount[f.httpUri] = (uriCount[f.httpUri] || 0) + 1; });
+  const top = Object.entries(uriCount).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([uri, count]) => ({ uri, count }));
+  res.json(top);
+});
+
+app.get('/api/web-traffic/top-hosts', optionalAuth, (req, res) => {
+  const traffic = readTable('network-traffic').filter(isWebFlow);
+  const hostCount = {};
+  traffic.forEach(f => { if (f.httpHost) hostCount[f.httpHost] = (hostCount[f.httpHost] || 0) + 1; });
+  const top = Object.entries(hostCount).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([host, count]) => ({ host, count }));
+  res.json(top);
+});
+
+app.get('/api/web-traffic/errors', optionalAuth, (req, res) => {
+  const traffic = readTable('network-traffic').filter(isWebFlow);
+  const errors = traffic.filter(f => f.httpStatus && f.httpStatus >= 400);
+  const byUri = {}; const byCode = {};
+  errors.forEach(f => {
+    const uri = f.httpUri || '/unknown';
+    if (!byUri[uri]) byUri[uri] = { uri, total: 0, '4xx': 0, '5xx': 0 };
+    byUri[uri].total++;
+    if (f.httpStatus >= 500) byUri[uri]['5xx']++; else byUri[uri]['4xx']++;
+    const codeStr = String(f.httpStatus);
+    byCode[codeStr] = (byCode[codeStr] || 0) + 1;
+  });
+  res.json({
+    totalErrors: errors.length,
+    errorRate: traffic.length > 0 ? parseFloat((errors.length / traffic.length * 100).toFixed(1)) : 0,
+    byUri: Object.values(byUri).sort((a, b) => b.total - a.total).slice(0, 20),
+    byCode: Object.entries(byCode).sort((a, b) => b[1] - a[1]).map(([code, count]) => ({ code: parseInt(code), count }))
+  });
+});
+
 // ---- Generic CRUD with Auth + Validation + Audit + Pagination ----
 const WRITABLE_TABLES = ['incidents', 'detection-rules', 'threat-intel', 'engineering-tasks', 'network-assets', 'qa-tests', 'playbooks', 'security-policies', 'security-standards'];
 const READONLY_TABLES = ['network-traffic'];
@@ -506,7 +597,13 @@ const SEED_DATA = {
     { id: 1, testName: 'C2 Rule QA Validation', ruleId: 1, status: 'pending', testCases: ['Generate test C2 traffic', 'Verify alert fires', 'Check false positive rate'], testedBy: 'Carol Nguyen', notes: 'Awaiting test environment', createdAt: new Date(Date.now() - 86400000).toISOString() }
   ],
   'network-traffic': [
-    { id: 1, srcIp: '10.0.1.45', destIp: '185.220.101.22', srcPort: 49152, destPort: 443, protocol: 'HTTPS', bytes: 45000, packets: 120, duration: 5.2, timestamp: new Date(Date.now() - 1800000).toISOString(), status: 'blocked', application: 'Web', assetId: 1, ruleId: 1, country: 'RU' }
+    { id: 1, srcIp: '10.0.1.45', destIp: '185.220.101.22', srcPort: 49152, destPort: 443, protocol: 'HTTPS', bytes: 45000, packets: 120, duration: 5.2, timestamp: new Date(Date.now() - 1800000).toISOString(), status: 'blocked', application: 'Web', assetId: 1, ruleId: 1, country: 'RU', httpMethod: null, httpUri: null, httpStatus: null, httpHost: null, httpUserAgent: null, httpContentType: null },
+    { id: 2, srcIp: '10.0.1.10', destIp: '10.0.1.5', srcPort: 52001, destPort: 80, protocol: 'HTTP', bytes: 2500, packets: 8, duration: 0.4, timestamp: new Date(Date.now() - 60000).toISOString(), status: 'allowed', application: 'Web', assetId: 1, ruleId: null, country: 'US', httpMethod: 'GET', httpUri: '/api/dashboard', httpStatus: 200, httpHost: 'app.internal.local', httpUserAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125', httpContentType: 'application/json' },
+    { id: 3, srcIp: '203.0.113.50', destIp: '10.0.1.5', srcPort: 33456, destPort: 80, protocol: 'HTTP', bytes: 420, packets: 3, duration: 0.1, timestamp: new Date(Date.now() - 120000).toISOString(), status: 'blocked', application: 'Web', assetId: 1, ruleId: 2, country: 'CN', httpMethod: 'POST', httpUri: '/api/auth/login', httpStatus: 401, httpHost: 'api.internal.local', httpUserAgent: 'python-requests/2.31', httpContentType: 'application/json' },
+    { id: 4, srcIp: '10.0.1.20', destIp: '10.0.1.5', srcPort: 52002, destPort: 80, protocol: 'HTTP', bytes: 12000, packets: 35, duration: 2.1, timestamp: new Date(Date.now() - 300000).toISOString(), status: 'allowed', application: 'Web', assetId: 1, ruleId: null, country: 'US', httpMethod: 'GET', httpUri: '/api/incidents', httpStatus: 200, httpHost: 'app.internal.local', httpUserAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14) Safari/17', httpContentType: 'application/json' },
+    { id: 5, srcIp: '10.0.1.45', destIp: '10.0.1.5', srcPort: 52003, destPort: 443, protocol: 'HTTPS', bytes: 89000, packets: 210, duration: 8.5, timestamp: new Date(Date.now() - 900000).toISOString(), status: 'allowed', application: 'Web', assetId: 1, ruleId: null, country: 'US', httpMethod: 'POST', httpUri: '/api/reports/generate', httpStatus: 200, httpHost: 'app.internal.local', httpUserAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/126', httpContentType: 'application/json' },
+    { id: 6, srcIp: '198.51.100.33', destIp: '10.0.1.5', srcPort: 44001, destPort: 80, protocol: 'HTTP', bytes: 180, packets: 2, duration: 0.05, timestamp: new Date(Date.now() - 45000).toISOString(), status: 'blocked', application: 'Web', assetId: 1, ruleId: null, country: 'DE', httpMethod: 'GET', httpUri: '/admin/config.php', httpStatus: 404, httpHost: 'app.internal.local', httpUserAgent: 'curl/8.4', httpContentType: 'text/html' },
+    { id: 7, srcIp: '10.0.1.10', destIp: '8.8.8.8', srcPort: 53, destPort: 53, protocol: 'DNS', bytes: 120, packets: 2, duration: 0.03, timestamp: new Date(Date.now() - 5000).toISOString(), status: 'allowed', application: 'DNS', assetId: 1, ruleId: null, country: 'US', httpMethod: null, httpUri: null, httpStatus: null, httpHost: null, httpUserAgent: null, httpContentType: null }
   ],
   playbooks: [
     { id: 1, name: 'C2 Containment', category: 'Incident Response', severity: 'Critical', status: 'Active', createdBy: 'Alice Chen', description: 'Isolate and investigate C2 communication', triggerOnAttackTypes: ['C2 Communication'], steps: [{ order: 1, action: 'Isolate affected host from network', assignee: 'SOC Tier 1', duration: '5 min' }, { order: 2, action: 'Collect network flow logs', assignee: 'SOC Tier 2', duration: '15 min' }, { order: 3, action: 'Analyze C2 payload and update IOCs', assignee: 'Threat Intel', duration: '30 min' }], runCount: 3, lastRun: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 604800000).toISOString() }
@@ -549,6 +646,13 @@ const PROTOCOLS = ['HTTPS', 'HTTP', 'DNS', 'SSH', 'SMB', 'RDP', 'TCP', 'SMTP', '
 const APPS = ['Web', 'DNS', 'Remote Access', 'File Sharing', 'Email', 'Infrastructure', 'SCADA', 'P2P'];
 const STATUSES = ['allowed', 'allowed', 'allowed', 'blocked', 'suspicious'];
 const COUNTRIES = ['US', 'US', 'US', 'CN', 'RU', 'DE', 'FR', 'GB', 'NL', 'BR'];
+
+const HTTP_METHODS = ['GET', 'GET', 'GET', 'GET', 'POST', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+const HTTP_URIS = ['/api/users', '/api/incidents', '/api/dashboard', '/login', '/api/search', '/index.html', '/api/assets', '/api/reports', '/api/settings', '/api/auth/login', '/api/traffic', '/api/rules', '/api/threat-intel', '/api/tasks', '/css/styles.css', '/js/app.js', '/api/health', '/api/metrics'];
+const HTTP_STATUSES = [200, 200, 200, 200, 200, 200, 200, 201, 301, 302, 304, 400, 401, 403, 404, 404, 404, 500, 502, 503];
+const HTTP_HOSTS = ['app.internal.local', 'api.internal.local', 'dashboard.internal.local', 'login.internal.local', 'cdn.internal.local', 's3.internal.local'];
+const HTTP_USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14) Safari/17', 'curl/8.4', 'python-requests/2.31', 'Mozilla/5.0 (X11; Linux x86_64) Firefox/126', 'Go-http-client/2.0'];
+const HTTP_CONTENT_TYPES = ['application/json', 'text/html', 'text/css', 'application/javascript', 'image/png', 'application/octet-stream', 'text/plain', 'multipart/form-data'];
 
 let sseClients = [];
 
@@ -739,18 +843,36 @@ function readTableSafe(name) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; }
 }
 
+function generateHttpFields(protocol) {
+  if (protocol !== 'HTTP' && protocol !== 'HTTPS') {
+    return { httpMethod: null, httpUri: null, httpStatus: null, httpHost: null, httpUserAgent: null, httpContentType: null };
+  }
+  const method = HTTP_METHODS[Math.floor(Math.random() * HTTP_METHODS.length)];
+  const uri = HTTP_URIS[Math.floor(Math.random() * HTTP_URIS.length)];
+  const statuses = method === 'POST' ? [200, 201, 400, 401, 500] : method === 'DELETE' ? [200, 204, 404, 500] : method === 'PUT' ? [200, 201, 400, 500] : [200, 200, 200, 200, 200, 200, 200, 201, 301, 302, 304, 400, 401, 403, 404, 404, 404, 500, 502, 503];
+  return {
+    httpMethod: method,
+    httpUri: uri,
+    httpStatus: statuses[Math.floor(Math.random() * statuses.length)],
+    httpHost: HTTP_HOSTS[Math.floor(Math.random() * HTTP_HOSTS.length)],
+    httpUserAgent: HTTP_USER_AGENTS[Math.floor(Math.random() * HTTP_USER_AGENTS.length)],
+    httpContentType: HTTP_CONTENT_TYPES[Math.floor(Math.random() * HTTP_CONTENT_TYPES.length)]
+  };
+}
+
 app.post('/api/network-traffic/simulate', authenticate, authorize('admin', 'analyst'), (req, res) => {
   const assets = readTable('network-assets');
   if (assets.length === 0) return res.status(400).json({ error: 'No assets found. Add an asset first.' });
   const asset = assets[Math.floor(Math.random() * assets.length)];
   const isExternal = Math.random() > 0.5;
+  const protocol = PROTOCOLS[Math.floor(Math.random() * PROTOCOLS.length)];
   const flow = {
     id: nextId(readTable('network-traffic')),
     srcIp: isExternal ? `${Math.floor(Math.random() * 223 + 1)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}` : asset.ipRange.split('/')[0],
     destIp: isExternal ? asset.ipRange.split('/')[0] : `${Math.floor(Math.random() * 223 + 1)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`,
     srcPort: Math.floor(Math.random() * 60000 + 1024),
-    destPort: [80, 443, 22, 53, 445, 3389, 25, 123][Math.floor(Math.random() * 8)],
-    protocol: PROTOCOLS[Math.floor(Math.random() * PROTOCOLS.length)],
+    destPort: protocol === 'HTTP' ? 80 : protocol === 'HTTPS' ? 443 : [22, 53, 445, 3389, 25, 123, 8080, 8443][Math.floor(Math.random() * 8)],
+    protocol,
     bytes: Math.floor(Math.random() * 10000000 + 500),
     packets: Math.floor(Math.random() * 8000 + 10),
     duration: parseFloat((Math.random() * 300 + 0.1).toFixed(1)),
@@ -759,7 +881,8 @@ app.post('/api/network-traffic/simulate', authenticate, authorize('admin', 'anal
     application: APPS[Math.floor(Math.random() * APPS.length)],
     assetId: asset.id,
     ruleId: Math.random() > 0.7 ? Math.floor(Math.random() * 10 + 1) : null,
-    country: COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)]
+    country: COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)],
+    ...generateHttpFields(protocol)
   };
   const traffic = readTable('network-traffic');
   traffic.push(flow);
@@ -866,6 +989,29 @@ app.get('/api/pcap/captures/:id/export', authenticate, authorize('admin', 'analy
     const { record, filePath } = await pcap.getPcapFile(req.params.id);
     res.download(filePath, record.originalName);
   } catch (e) { next(new NotFoundError(e.message)); }
+});
+
+app.get('/api/pcap/captures/:id/analysis/http', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const data = await pcap.getHttpAnalysis(req.params.id);
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+// ---- Web Traffic Export ----
+app.get('/api/web-traffic/export', authenticate, (req, res) => {
+  const data = readTable('network-traffic').filter(f => f.httpMethod);
+  if (data.length === 0) return res.status(404).json({ error: 'No web traffic data' });
+  const headers = ['timestamp','srcIp','destIp','srcPort','destPort','protocol','httpMethod','httpUri','httpStatus','httpHost','httpUserAgent','httpContentType','bytes','duration','status'];
+  const csv = [headers.join(','), ...data.map(row => headers.map(h => {
+    const val = row[h];
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
+  }).join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="web-traffic-${new Date().toISOString().split('T')[0]}.csv"`);
+  res.send(csv);
 });
 
 // ---- Live Capture ----
@@ -977,7 +1123,12 @@ function getNidsFieldValue(field, item) {
     'ip.src': 'srcIp', 'ip.dst': 'destIp', 'ip.addr': null,
     'tcp.srcport': 'srcPort', 'tcp.dstport': 'destPort',
     'udp.srcport': 'srcPort', 'udp.dstport': 'destPort',
-    'frame.len': 'bytes', 'frame.protocols': 'protocol', 'ip.proto': 'protocol'
+    'frame.len': 'bytes', 'frame.protocols': 'protocol', 'ip.proto': 'protocol',
+    'http.method': 'httpMethod', 'http.request.method': 'httpMethod',
+    'http.uri': 'httpUri', 'http.request.uri': 'httpUri',
+    'http.status': 'httpStatus', 'http.response.code': 'httpStatus',
+    'http.host': 'httpHost', 'http.user_agent': 'httpUserAgent',
+    'http.content_type': 'httpContentType'
   };
   if (field === 'ip.addr') return `${item.srcIp} ${item.destIp}`;
   if (field === 'tcp.port') return `${item.srcPort} ${item.destPort}`;

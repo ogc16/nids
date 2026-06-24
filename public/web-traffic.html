@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Network Monitoring - NIDS</title>
+  <title>Web Traffic Monitoring - NIDS</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/app.js" defer></script>
-  <script src="/network-monitoring.js" defer></script>
+  <script src="/web-traffic.js" defer></script>
 </head>
 <body>
   <div class="app-layout">
@@ -46,8 +46,8 @@
         </div>
         <div class="nav-section">
           <div class="nav-section-title">Infrastructure</div>
-          <a href="/network-monitoring" class="nav-item active"><span class="icon">&#128200;</span> Network Monitoring</a>
-          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item active"><span class="icon">&#127760;</span> Web Traffic</a>
           <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
           <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
         </div>
@@ -75,74 +75,72 @@
     <main class="main-content">
       <div class="page-header">
         <div>
-          <h2>&#128200; Network Traffic Monitoring</h2>
-          <div class="subtitle">Real-time network flows, protocol analysis &amp; threat detection</div>
+          <h2>&#127760; Web Traffic Monitoring</h2>
+          <div class="subtitle">HTTP/HTTPS request analysis, method distribution &amp; error monitoring</div>
         </div>
         <div class="header-actions">
           <span id="wiresharkFilterStatus" style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:4px"></span>
-          <button class="btn btn-info btn-sm" id="openInWiresharkBtn" title="Generate Wireshark filter from current selection">&#128220; Wireshark Filter</button>
-          <button class="btn btn-secondary btn-sm" id="exportTrafficCsv">Export CSV</button>
+          <button class="btn btn-info btn-sm" id="openInWiresharkBtn" title="Copy Wireshark filter to clipboard">&#128220; Wireshark Filter</button>
+          <button class="btn btn-secondary btn-sm" id="exportWebTrafficCsv">Export CSV</button>
         </div>
       </div>
 
       <div class="filters-bar" style="margin-bottom:16px">
-        <input type="text" class="filter-input" id="wiresharkFilter" placeholder="Wireshark display filter (e.g., ip.src==10.0.0.1, http, dns)" style="flex:1;min-width:300px;font-family:monospace">
+        <input type="text" class="filter-input" id="wiresharkFilter" placeholder="Wireshark display filter (e.g., http.method==GET, http.status>=400, http.host contains app)" style="flex:1;min-width:300px;font-family:monospace">
         <button class="btn btn-secondary btn-sm" id="applyWiresharkFilter">Apply Filter</button>
         <button class="btn btn-secondary btn-sm" id="clearWiresharkFilter">Clear</button>
       </div>
 
-      <div class="dashboard-grid" id="trafficStatCards">
-        <div class="stat-card stat-info"><div class="stat-label">Total Flows</div><div class="stat-value" id="totalFlows">-</div><div class="stat-sub">Network connections monitored</div></div>
-        <div class="stat-card stat-critical"><div class="stat-label">Suspicious</div><div class="stat-value" id="suspiciousFlows">-</div><div class="stat-sub">Flagged for investigation</div></div>
-        <div class="stat-card stat-warning"><div class="stat-label">Blocked</div><div class="stat-value" id="blockedFlows">-</div><div class="stat-sub">Dropped by security policies</div></div>
-        <div class="stat-card stat-success"><div class="stat-label">Data Transferred</div><div class="stat-value" id="totalData">-</div><div class="stat-sub">Total traffic volume</div></div>
+      <div class="stat-cards">
+        <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value" id="totalRequests">-</div></div>
+        <div class="stat-card"><div class="stat-label">Methods</div><div class="stat-value" id="uniqueMethods">-</div></div>
+        <div class="stat-card"><div class="stat-label">Error Rate</div><div class="stat-value" id="errorRate">-</div></div>
+        <div class="stat-card"><div class="stat-label">Endpoints</div><div class="stat-value" id="uniqueUris">-</div></div>
       </div>
 
-      <div class="charts-row">
-        <div class="chart-container">
-          <h3>Protocol Distribution</h3>
-          <canvas id="protocolChart"></canvas>
+      <div class="charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card"><div class="card-body"><canvas id="methodChart"></canvas></div></div>
+        <div class="card"><div class="card-body"><canvas id="statusChart"></canvas></div></div>
+      </div>
+
+      <div class="charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card"><div class="card-body"><h4 style="margin:0 0 12px;color:var(--text-primary)">Top URIs</h4><div id="topUrisList"></div></div></div>
+        <div class="card"><div class="card-body"><h4 style="margin:0 0 12px;color:var(--text-primary)">Top Hosts</h4><div id="topHostsList"></div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>HTTP Request Log</h3>
+          <div class="filters-bar" style="margin:0;gap:8px">
+            <select id="methodFilter" class="filter-input" style="width:100px"><option value="">All Methods</option></select>
+            <select id="statusGroupFilter" class="filter-input" style="width:100px"><option value="">All Status</option></select>
+            <input type="text" class="filter-input" id="searchFilter" placeholder="Search URI, host, status..." style="width:200px">
+          </div>
         </div>
-        <div class="chart-container">
-          <h3>Traffic by Application</h3>
-          <canvas id="appChart"></canvas>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <table class="data-table" style="width:100%">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Method</th>
+                <th>URI</th>
+                <th>Status</th>
+                <th>Host</th>
+                <th>Size</th>
+                <th>Duration</th>
+                <th>User-Agent</th>
+              </tr>
+            </thead>
+            <tbody id="webTrafficTableBody"></tbody>
+          </table>
         </div>
-      </div>
-
-      <div class="filters-bar" style="margin-top:20px">
-        <select class="filter-select" id="protocolFilter">
-          <option value="">All Protocols</option>
-        </select>
-        <select class="filter-select" id="statusFilter">
-          <option value="">All Statuses</option>
-          <option value="allowed">Allowed</option>
-          <option value="blocked">Blocked</option>
-          <option value="suspicious">Suspicious</option>
-        </select>
-        <select class="filter-select" id="appFilter">
-          <option value="">All Applications</option>
-        </select>
-        <input class="filter-input" id="searchInput" placeholder="Search IP, protocol, or country...">
-      </div>
-
-      <div class="data-table-wrapper">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Source</th>
-              <th>Dest</th>
-              <th>Protocol</th>
-              <th>Size</th>
-              <th>Duration</th>
-              <th>App</th>
-              <th>Country</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="trafficTableBody"></tbody>
-        </table>
+        <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px">
+          <span id="paginationInfo" style="color:var(--text-secondary);font-size:12px"></span>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-secondary btn-sm" id="prevPageBtn" disabled>Prev</button>
+            <button class="btn btn-secondary btn-sm" id="nextPageBtn" disabled>Next</button>
+          </div>
+        </div>
       </div>
     </main>
   </div>
