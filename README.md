@@ -79,6 +79,7 @@ nids/
     ├── tasks.html + tasks.js
     ├── assets.html + assets.js
     ├── network-monitoring.html + network-monitoring.js
+    ├── web-traffic.html + web-traffic.js
     ├── pcap-analysis.html + pcap-analysis.js
     ├── host-monitoring.html + host-monitoring.js
     ├── qa.html + qa.js

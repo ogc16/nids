@@ -22,6 +22,7 @@ The Express server listens on `http://localhost:3000` and optionally `https://lo
 - **Automations engine** with event hooks on create/update
 - **Authentication** via JWT (Bearer token + HTTP-only cookie)
 - **PCAP analysis** via tshark wrapper
+- **Web traffic monitoring** with HTTP analytics (methods, status codes, URIs, hosts)
 - **Host monitoring** via PowerShell
 - **Patch management** via PowerShell/Windows Update API
 
@@ -62,7 +63,7 @@ All data is stored as JSON arrays in `data/`:
 - `threat-intel.json` — Threat intelligence/IOC data
 - `engineering-tasks.json` — Engineering task board
 - `network-assets.json` — Network device inventory
-- `network-traffic.json` — Traffic flow records
+- `network-traffic.json` — Traffic flow records (includes HTTP fields: `httpMethod`, `httpUri`, `httpStatus`, `httpHost`, `httpUserAgent`, `httpContentType`)
 - `qa-tests.json` — QA test cases
 - `automations-log.json` — Automation event history
 - `pcap-captures.json` — PCAP capture metadata
@@ -103,7 +104,7 @@ Generic CRUD endpoints at `/api/:table` with automatic `id` assignment, paginati
 #### Packet Listing
 `GET /api/pcap/captures/:id/analysis/packets?page=1&limit=50&filter=`
 - Uses `tshark -T json -Y <filter> -T fields -e <fields>` for packet-level data
-- Extracted fields: frame number, time, source/dest IP, ports, protocol, length, info
+- Extracted fields: frame number, time, source/dest IP, ports, protocol, length, HTTP method/URI/status, host, user-agent, content-type, DNS query, TLS handshake type, TCP flags
 - Optional Wireshark display filter via `?filter=`
 - Paginated with `page` and `limit` query params
 
@@ -124,6 +125,16 @@ Generic CRUD endpoints at `/api/:table` with automatic `id` assignment, paginati
 - Captures saved to `data/pcap/` and metadata recorded
 - Requires Npcap (admin install) on Windows
 
+#### HTTP Analysis
+`GET /api/pcap/captures/:id/analysis/http`
+- Uses `tshark -r <file> -T json -Y "http or http2" -e` for HTTP packet extraction
+- Returns aggregated HTTP analysis:
+  - Method distribution (GET, POST, PUT, DELETE, etc.)
+  - Status code distribution (grouped and per-code)
+  - Top hosts, top URIs
+  - Full HTTP request/response list with method, URI, status, host, user-agent, content-type, referer, response phrase
+- Extracted HTTP fields: `http.request.method`, `http.request.uri`, `http.response.code`, `http.host`, `http.user_agent`, `http.content_type`, `http.referer`, `http.request.full_uri`, `http.response.phrase`
+
 ### tshark Commands Reference
 
 | Command | Output Format | Purpose |
@@ -132,6 +143,7 @@ Generic CRUD endpoints at `/api/:table` with automatic `id` assignment, paginati
 | `tshark -r file -T fields -z endpoints,ip` | Text table | Endpoint stats |
 | `tshark -r file -T fields -z conv,tcp` | Text table | Conversation stats |
 | `tshark -r file -T json -Y "filter" -e frame.number -e ...` | JSON array | Packet listing |
+| `tshark -r file -T json -Y "http or http2" -e http.request.method -e ...` | JSON array | HTTP analysis |
 | `tshark -i eth0 -w file.pcap -a duration:30` | PCAP file | Live capture |
 | `tshark -r file -Y "filter"` | Exit code | Filter validation |
 
@@ -280,6 +292,52 @@ Returns audit log of all patch operations with:
 - Install operations require administrator privileges
 - Some PowerShell commands may timeout (45-second default)
 
+## Web Traffic Monitoring (server.js)
+
+### Architecture
+The web traffic monitoring system analyzes HTTP/HTTPS flows from the `network-traffic.json` data store. Flows are identified as web traffic when they have `httpMethod` set (HTTP/HTTPS protocols). The traffic simulation generates realistic HTTP data including methods, URIs, status codes, hosts, and user agents.
+
+### Endpoints
+
+#### Summary
+`GET /api/web-traffic/summary`
+Returns aggregated HTTP analytics:
+- `totalRequests` — Total HTTP/HTTPS flow count
+- `methodDistribution` — Array of `{ method, count }` (GET, POST, PUT, DELETE, etc.)
+- `statusCodeGroups` — Object with `2xx`, `3xx`, `4xx`, `5xx` counts
+- `topUris` — Top 10 most requested URIs with counts
+- `topHosts` — Top 10 most requested hosts with counts
+- `errorRate` — Percentage of 4xx/5xx responses
+- `uniqueUris` / `uniqueHosts` — Distinct URI/host counts
+
+#### Request Log
+`GET /api/web-traffic/requests?page=1&limit=50&method=&status=&search=&displayFilter=`
+Returns paginated HTTP request records with:
+- Timestamp, source/dest IP and port, protocol
+- HTTP method, URI, status code, host, user-agent, content-type, bytes, duration
+- Supports Wireshark display filter via `?displayFilter=`
+- Client-side filters: `?method=GET`, `?status=4` (prefix match), `?search=`
+
+#### Top URIs
+`GET /api/web-traffic/top-uris`
+Returns top 20 most requested URIs with counts.
+
+#### Top Hosts
+`GET /api/web-traffic/top-hosts`
+Returns top 20 most requested hosts with counts.
+
+#### Errors
+`GET /api/web-traffic/errors`
+Returns error analysis:
+- `totalErrors` — Count of 4xx/5xx responses
+- `errorRate` — Error percentage
+- `byUri` — Errors grouped by URI with 4xx/5xx breakdown
+- `byCode` — Errors grouped by status code
+
+#### CSV Export
+`GET /api/web-traffic/export`
+Downloads all HTTP flow records as CSV with columns: timestamp, srcIp, destIp, srcPort, destPort, protocol, httpMethod, httpUri, httpStatus, httpHost, httpUserAgent, httpContentType, bytes, duration, status.
+
 ## Frontend Pages
 
 ### Common Infrastructure
@@ -332,6 +390,19 @@ Returns audit log of all patch operations with:
 - "Open in Wireshark" — copies display filter to clipboard
 - "Export CSV" — downloads filtered flows as CSV
 - ToD (Time of Day) heatmap
+
+### Web Traffic (`/web-traffic`)
+- HTTP/HTTPS-specific traffic monitoring dashboard
+- Summary cards: total requests, unique methods, error rate, unique endpoints
+- HTTP methods distribution doughnut chart (GET, POST, PUT, DELETE, etc.)
+- Status code group bar chart (2xx, 3xx, 4xx, 5xx)
+- Top URIs and Top Hosts ranked lists with counts
+- Paginated HTTP request log table with columns: Time, Method, URI, Status, Host, Size, Duration, User-Agent
+- Client-side filtering by method, status code group, and text search
+- Wireshark display filter support (e.g., `http.method==GET`, `http.status>=400`)
+- "Open in Wireshark" — copies filter to clipboard with auto-generation
+- "Export CSV" — downloads HTTP request data
+- Real-time updates via SSE on new traffic simulation
 
 ### PCAP Analysis (`/pcap-analysis`)
 - PCAP file upload with drag-and-drop
@@ -400,12 +471,22 @@ The server implements a token-based display filter evaluator for the network tra
 - `application` — Application label
 - `country` — Geo-location code
 - `timestamp` — ISO date string
+- `httpMethod` / `http.request.method` — HTTP method (GET, POST, etc.)
+- `httpUri` / `http.request.uri` — Request URI path
+- `httpStatus` / `http.response.code` — HTTP status code (numeric)
+- `httpHost` / `http.host` — Host header value
+- `httpUserAgent` / `http.user_agent` — User-Agent string
+- `httpContentType` / `http.content_type` — Content-Type header
+
+Wireshark field names (`ip.src`, `tcp.port`, `http.method`, etc.) are automatically mapped to their internal equivalents.
 
 ### PCAP Display Filter (tshark native)
 The PCAP analysis page passes filters directly to tshark's `-Y` flag, supporting full Wireshark display filter syntax:
 - `ip.src == 192.168.1.1`
 - `tcp.port == 443`
 - `http.request`
+- `http.response.code >= 400`
+- `http.host contains "api"`
 - `frame.number >= 100 && frame.number <= 200`
 
 ## Styling Reference (public/styles.css)
@@ -446,6 +527,14 @@ The PCAP analysis page passes filters directly to tshark's `-Y` flag, supporting
 | Scan returns no hosts | Check subnet value; Windows firewall may block ICMP |
 | Process details fail | Process may have exited; run as Admin |
 | PowerShell timeout | Large output sets may need increased timeout in monitor.js |
+
+### Web Traffic Issues
+| Problem | Solution |
+|---------|----------|
+| No web traffic showing | Ensure traffic simulation is running (POST `/api/network-traffic/simulate` or `/api/network-traffic/auto-simulate`) |
+| HTTP fields are null | Old records lack HTTP fields; generate new traffic via simulation |
+| Filter returns no results | Check field name (`http.method` not `method`) and value casing |
+| Export CSV is empty | No HTTP flows exist with `httpMethod` set |
 
 ### Patch Management Issues
 | Problem | Solution |
