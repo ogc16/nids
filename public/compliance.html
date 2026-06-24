@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compliance Dashboard - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <style>
+    .compliance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .fw-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden; }
+    .fw-card:hover { border-color: var(--accent-blue); background: var(--bg-hover); }
+    .fw-card.active { border-color: var(--accent-blue); box-shadow: 0 0 0 1px var(--accent-blue); }
+    .fw-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .fw-card-title { font-size: 16px; font-weight: 600; }
+    .fw-card-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .fw-score-ring { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
+    .fw-score-ring.excellent { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 3px solid var(--accent-green); }
+    .fw-score-ring.good { background: rgba(210,153,34,0.15); color: var(--accent-orange); border: 3px solid var(--accent-orange); }
+    .fw-score-ring.needs-work { background: rgba(248,81,73,0.15); color: var(--accent-red); border: 3px solid var(--accent-red); }
+    .fw-stats { display: flex; gap: 16px; margin: 12px 0; }
+    .fw-stat { text-align: center; flex: 1; padding: 8px; background: var(--bg-secondary); border-radius: 6px; }
+    .fw-stat-value { font-size: 18px; font-weight: 700; }
+    .fw-stat-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .fw-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .fw-status.excellent { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+    .fw-status.good { background: rgba(210,153,34,0.15); color: var(--accent-orange); }
+    .fw-status.needs-work { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+    .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .section-title .back-btn { font-size: 13px; font-weight: 400; color: var(--accent-blue); cursor: pointer; background: none; border: none; padding: 0; }
+    .section-title .back-btn:hover { text-decoration: underline; }
+    .detail-section { display: none; }
+    .detail-section.visible { display: block; }
+    .recommendation-item { padding: 12px 16px; border-bottom: 1px solid rgba(48,54,61,0.3); display: flex; gap: 12px; align-items: flex-start; }
+    .recommendation-item:last-child { border-bottom: none; }
+    .recommendation-item .rec-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .recommendation-item .rec-text { font-size: 13px; }
+    .recommendation-item .rec-meta { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+    .evidence-item { padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(48,54,61,0.2); }
+    .evidence-item:last-child { border-bottom: none; }
+    .evidence-item .ev-name { font-size: 13px; }
+    .evidence-item .ev-date { font-size: 11px; color: var(--text-secondary); }
+    .report-summary { background: var(--bg-secondary); border-radius: 6px; padding: 16px; margin-top: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.6; }
+    .no-select { user-select: none; }
+    .inline-flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .mb-16 { margin-bottom: 16px; }
+    .mt-16 { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128203; Compliance Dashboard</h2>
+          <div class="subtitle">Framework compliance tracking, controls management, and evidence collection</div>
+        </div>
+      </div>
+
+      <div id="summaryCards" class="dashboard-grid"></div>
+
+      <div id="frameworksView">
+        <div class="section-title">Frameworks</div>
+        <div id="fwCards" class="compliance-grid"></div>
+      </div>
+
+      <div id="detailView" class="detail-section">
+        <div class="section-title">
+          <button class="back-btn" id="detailBackBtn">&larr; Back to Frameworks</button>
+          <span id="detailTitle"></span>
+        </div>
+
+        <div id="detailControls" class="data-table-wrapper mb-16" style="display:none">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Control ID</th>
+                <th>Requirement</th>
+                <th>Status</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody id="controlsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card mb-16" id="detailRecommendations" style="display:none">
+          <div class="card-title" style="margin-bottom:12px">&#128220; Gaps &amp; Recommendations</div>
+          <div id="recommendationsBody"></div>
+        </div>
+
+        <div class="card mb-16" id="detailEvidence" style="display:none">
+          <div class="card-title" style="margin-bottom:12px">&#128193; Evidence Collection</div>
+          <div class="inline-flex mb-16">
+            <select id="evControlSelect" class="filter-select" style="min-width:180px">
+              <option value="">Select Control ID</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="collectEvBtn">Collect Evidence</button>
+          </div>
+          <div id="evidenceList"></div>
+        </div>
+
+        <div class="card" id="detailReport" style="display:none">
+          <div class="card-title" style="margin-bottom:12px">&#128202; Report</div>
+          <button class="btn btn-info btn-sm mb-16" id="generateReportBtn">Generate Report</button>
+          <div id="reportContent"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      let frameworks = [];
+      let selectedFramework = null;
+      let recommendations = [];
+
+      const fwCardsEl = document.getElementById('fwCards');
+      const detailView = document.getElementById('detailView');
+      const frameworksView = document.getElementById('frameworksView');
+      const summaryCards = document.getElementById('summaryCards');
+      const controlsBody = document.getElementById('controlsBody');
+      const recommendationsBody = document.getElementById('recommendationsBody');
+      const evidenceList = document.getElementById('evidenceList');
+      const reportContent = document.getElementById('reportContent');
+      const detailControls = document.getElementById('detailControls');
+      const detailRecommendations = document.getElementById('detailRecommendations');
+      const detailEvidence = document.getElementById('detailEvidence');
+      const detailReport = document.getElementById('detailReport');
+      const detailTitle = document.getElementById('detailTitle');
+      const evControlSelect = document.getElementById('evControlSelect');
+      const detailBackBtn = document.getElementById('detailBackBtn');
+
+      function scoreClass(score) {
+        if (score >= 80) return 'excellent';
+        if (score >= 60) return 'good';
+        return 'needs-work';
+      }
+
+      function statusTag(status) {
+        const cls = status.toLowerCase().replace(/\s+/g, '-');
+        return `<span class="tag tag-${cls}">${status}</span>`;
+      }
+
+      function renderSummaryCards(dash) {
+        const cards = [
+          { label: 'Overall Compliance', value: (dash.overallScore ?? 0) + '%', sub: 'Across all frameworks', cls: scoreClass(dash.overallScore ?? 0) },
+          { label: 'Total Controls', value: dash.totalControls ?? 0, sub: 'Across all frameworks', cls: 'info' },
+          { label: 'Passed', value: dash.totalPassed ?? 0, sub: 'Controls passing', cls: 'success' },
+          { label: 'Failed', value: dash.totalFailed ?? 0, sub: 'Controls failing', cls: 'critical' }
+        ];
+        summaryCards.innerHTML = cards.map(c =>
+          `<div class="stat-card stat-${c.cls}"><div class="stat-label">${c.label}</div><div class="stat-value">${c.value}</div><div class="stat-sub">${c.sub}</div></div>`
+        ).join('');
+      }
+
+      function renderFrameworkCards() {
+        fwCardsEl.innerHTML = frameworks.map(fw => {
+          const score = fw.score ?? 0;
+          const sc = scoreClass(score);
+          const passed = fw.controlsPassed ?? 0;
+          const failed = fw.controlsFailed ?? 0;
+          const total = fw.controlsTotal ?? (passed + failed);
+          const statusLabels = { excellent: 'Excellent', good: 'Good', 'needs-work': 'Needs Work' };
+          return `
+            <div class="fw-card" data-fw="${fw.id}">
+              <div class="fw-card-header">
+                <div>
+                  <div class="fw-card-title">${fw.name}</div>
+                  <div class="fw-card-sub">${fw.description || ''}</div>
+                </div>
+                <div class="fw-score-ring ${sc}">${score}%</div>
+              </div>
+              <div class="fw-stats">
+                <div class="fw-stat"><div class="fw-stat-value" style="color:var(--accent-green)">${passed}</div><div class="fw-stat-label">Passed</div></div>
+                <div class="fw-stat"><div class="fw-stat-value" style="color:var(--accent-red)">${failed}</div><div class="fw-stat-label">Failed</div></div>
+                <div class="fw-stat"><div class="fw-stat-value">${total}</div><div class="fw-stat-label">Total</div></div>
+              </div>
+              <div class="fw-status ${sc}">${statusLabels[sc]}</div>
+            </div>
+          `;
+        }).join('');
+
+        fwCardsEl.querySelectorAll('.fw-card').forEach(el => {
+          el.addEventListener('click', () => showFrameworkDetail(el.dataset.fw));
+        });
+      }
+
+      async function showFrameworkDetail(fwId) {
+        selectedFramework = fwId;
+        frameworksView.style.display = 'none';
+        detailView.classList.add('visible');
+        fwCardsEl.querySelectorAll('.fw-card').forEach(c => c.classList.remove('active'));
+        const card = fwCardsEl.querySelector(`[data-fw="${fwId}"]`);
+        if (card) card.classList.add('active');
+
+        const fw = frameworks.find(f => f.id === fwId);
+        detailTitle.textContent = fw ? fw.name : fwId;
+
+        detailControls.style.display = 'none';
+        detailRecommendations.style.display = 'none';
+        detailEvidence.style.display = 'none';
+        detailReport.style.display = 'none';
+
+        try {
+          const controls = await apiFetch(`/compliance/${fwId}/controls`);
+          controlsBody.innerHTML = controls.map(c => `
+            <tr>
+              <td><span class="clickable" onclick="openModal('Control Detail', [{label:'Control ID',value:'${c.id}'},{label:'Requirement',value:'${c.requirement || ''}'},{label:'Description',value:'${(c.description || '').replace(/'/g, '\\\'')}'},{label:'Status',value:'${c.status}'},{label:'Evidence',value:'${c.evidenceCount ?? 0} items'}])">${c.id}</span></td>
+              <td>${c.requirement || ''}</td>
+              <td>${statusTag(c.status)}</td>
+              <td>${c.evidenceCount ?? 0}</td>
+            </tr>
+          `).join('');
+          detailControls.style.display = 'block';
+        } catch { controlsBody.innerHTML = '<tr><td colspan="4">Failed to load controls</td></tr>'; }
+
+        try {
+          const recs = await apiFetch('/compliance/recommendations');
+          const fwRecs = recs.filter(r => r.framework === fwId);
+          recommendationsBody.innerHTML = fwRecs.length
+            ? fwRecs.map(r => `
+                <div class="recommendation-item">
+                  <div class="rec-icon">&#128161;</div>
+                  <div>
+                    <div class="rec-text">${r.recommendation || r.text || ''}</div>
+                    <div class="rec-meta">${r.controlId ? 'Control: ' + r.controlId : ''}${r.severity ? ' &middot; ' + r.severity : ''}</div>
+                  </div>
+                </div>
+              `).join('')
+            : '<div style="padding:16px;color:var(--text-secondary)">No gaps or recommendations found.</div>';
+          detailRecommendations.style.display = 'block';
+        } catch { recommendationsBody.innerHTML = '<div style="padding:16px;color:var(--text-secondary)">Failed to load recommendations.</div>'; }
+
+        try {
+          const allRecs = await apiFetch('/compliance/recommendations');
+          recommendations = allRecs.filter(r => r.framework === fwId);
+        } catch { recommendations = []; }
+
+        try {
+          const evControls = await apiFetch(`/compliance/${fwId}/controls`);
+          evControlSelect.innerHTML = '<option value="">Select Control ID</option>' +
+            evControls.map(c => `<option value="${c.id}">${c.id} - ${(c.requirement || '').substring(0, 40)}</option>`).join('');
+          detailEvidence.style.display = 'block';
+        } catch { detailEvidence.style.display = 'block'; }
+
+        evidenceList.innerHTML = '<div style="padding:16px;color:var(--text-secondary);font-size:13px">Select a control ID and click "Collect Evidence" to view evidence.</div>';
+        reportContent.innerHTML = '';
+        detailReport.style.display = 'block';
+      }
+
+      detailBackBtn.addEventListener('click', () => {
+        selectedFramework = null;
+        detailView.classList.remove('visible');
+        frameworksView.style.display = 'block';
+        fwCardsEl.querySelectorAll('.fw-card').forEach(c => c.classList.remove('active'));
+      });
+
+      document.getElementById('collectEvBtn').addEventListener('click', async () => {
+        const controlId = evControlSelect.value;
+        if (!controlId || !selectedFramework) {
+          showToast('Please select a control ID', 'error');
+          return;
+        }
+        try {
+          const evidence = await apiFetch(`/compliance/evidence/${selectedFramework}/${controlId}`);
+          if (!evidence || evidence.length === 0) {
+            evidenceList.innerHTML = '<div style="padding:16px;color:var(--text-secondary)">No evidence collected for this control.</div>';
+          } else {
+            evidenceList.innerHTML = evidence.map(e => `
+              <div class="evidence-item">
+                <div>
+                  <div class="ev-name">${e.name || e.title || 'Evidence item'}</div>
+                  <div class="ev-date">${e.date ? formatDate(e.date) : ''}${e.type ? ' &middot; ' + e.type : ''}</div>
+                </div>
+                ${e.status ? `<span class="tag tag-${e.status.toLowerCase()}">${e.status}</span>` : ''}
+              </div>
+            `).join('');
+          }
+          showToast(`Loaded ${evidence.length || 0} evidence items`);
+        } catch (err) {
+          evidenceList.innerHTML = '<div style="padding:16px;color:var(--text-secondary)">Failed to collect evidence.</div>';
+          showToast('Failed to collect evidence', 'error');
+        }
+      });
+
+      document.getElementById('generateReportBtn').addEventListener('click', async () => {
+        if (!selectedFramework) return;
+        showLoading('Generating report');
+        try {
+          const report = await apiFetch(`/compliance/${selectedFramework}/report`);
+          reportContent.innerHTML = `<div class="report-summary">${typeof report === 'string' ? report : JSON.stringify(report, null, 2)}</div>`;
+          showToast('Report generated');
+        } catch {
+          reportContent.innerHTML = '<div style="padding:16px;color:var(--text-secondary)">Failed to generate report.</div>';
+          showToast('Failed to generate report', 'error');
+        } finally { hideLoading(); }
+      });
+
+      async function init() {
+        showLoading('Loading compliance data');
+        try {
+          const dash = await apiFetch('/compliance/dashboard');
+          renderSummaryCards(dash);
+        } catch { summaryCards.innerHTML = '<div class="empty-state">Failed to load dashboard summary</div>'; }
+
+        try {
+          frameworks = await apiFetch('/compliance/frameworks');
+          renderFrameworkCards();
+        } catch {
+          fwCardsEl.innerHTML = '<div class="empty-state">Failed to load frameworks</div>';
+        } finally { hideLoading(); }
+      }
+
+      init();
+    });
+  </script>
+</body>
+</html>

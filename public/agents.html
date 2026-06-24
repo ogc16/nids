@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDS - Remote Agents</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const API = '/api/agents';
+      let currentDataTab = 'connections';
+
+      // --- Registered Agents ---
+      async function loadAgents() {
+        const tbody = document.getElementById('agentsBody');
+        try {
+          const agents = await apiFetch('/agents');
+          tbody.innerHTML = agents.map(a => `
+            <tr>
+              <td>${a.id}</td>
+              <td><span class="tag tag-${a.type.toLowerCase()}">${a.type}</span></td>
+              <td>${a.host}</td>
+              <td>${a.port}</td>
+              <td><span class="tag tag-${a.status}">${a.status}</span></td>
+              <td>${formatDate(a.lastSeen)}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="deleteAgent('${a.id}')">Delete</button></td>
+            </tr>
+          `).join('');
+        } catch (err) {
+          tbody.innerHTML = `<tr><td colspan="7">Failed to load agents: ${err.message}</td></tr>`;
+        }
+      }
+
+      document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          type: document.getElementById('agentType').value,
+          host: document.getElementById('agentHost').value,
+          port: parseInt(document.getElementById('agentPort').value),
+          username: document.getElementById('agentUsername').value || undefined,
+          authType: document.getElementById('agentAuthType').value
+        };
+        try {
+          await apiFetch('/agents/register', { method: 'POST', body: JSON.stringify(payload) });
+          showToast('Agent registered successfully');
+          e.target.reset();
+          loadAgents();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      window.deleteAgent = async (id) => {
+        if (!confirm('Delete this agent?')) return;
+        try {
+          await apiFetch(`/agents/${id}`, { method: 'DELETE' });
+          showToast('Agent deleted');
+          loadAgents();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      };
+
+      document.getElementById('refreshAgents').addEventListener('click', loadAgents);
+
+      // --- Data Collection ---
+      document.getElementById('collectBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('collectBtn');
+        btn.disabled = true;
+        btn.textContent = 'Collecting...';
+        try {
+          const result = await apiFetch('/agents/collect', { method: 'POST' });
+          showToast('Data collected from all agents');
+          renderDataTab(currentDataTab, result);
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Collect from All Agents';
+        }
+      });
+
+      document.querySelectorAll('.data-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.data-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentDataTab = tab.dataset.tab;
+        });
+      });
+
+      function renderDataTab(tab, data) {
+        const container = document.getElementById('dataResults');
+        if (!data || !data[tab] || !data[tab].length) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128200;</div><h3>No Data</h3><p>Click "Collect from All Agents" to gather data.</p></div>';
+          return;
+        }
+        const cols = Object.keys(data[tab][0]);
+        container.innerHTML = `
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+              <tbody>${data[tab].map(row => `<tr>${cols.map(c => `<td>${row[c] ?? '-'}</td>`).join('')}</tr>`).join('')}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // --- Agent Discovery ---
+      document.getElementById('discoverForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subnet = document.getElementById('discoverSubnet').value;
+        const btn = document.getElementById('discoverBtn');
+        btn.disabled = true;
+        btn.textContent = 'Scanning...';
+        const tbody = document.getElementById('discoverBody');
+        try {
+          const result = await apiFetch('/agents/discover', { method: 'POST', body: JSON.stringify({ subnet }) });
+          tbody.innerHTML = (result.hosts || result).map(h => `
+            <tr>
+              <td>${h.ip || h.host || '-'}</td>
+              <td>${h.hostname || '-'}</td>
+              <td>${h.openPorts ? h.openPorts.join(', ') : (h.ports || '-')}</td>
+              <td><span class="tag tag-${(h.status || 'offline').toLowerCase()}">${h.status || 'unknown'}</span></td>
+            </tr>
+          `).join('');
+          showToast(`Discovered ${result.hosts ? result.hosts.length : result.length} host(s)`);
+        } catch (err) {
+          tbody.innerHTML = `<tr><td colspan="4">Discovery failed: ${err.message}</td></tr>`;
+          showToast(err.message, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Discover';
+        }
+      });
+
+      // --- Agent HTTP Server ---
+      document.getElementById('startServerBtn').addEventListener('click', async () => {
+        const port = parseInt(document.getElementById('serverPort').value);
+        if (!port) { showToast('Enter a valid port', 'error'); return; }
+        try {
+          await apiFetch('/agents/server/start', { method: 'POST', body: JSON.stringify({ port }) });
+          showToast('Agent HTTP server started');
+          updateServerStatus(true, port);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      document.getElementById('stopServerBtn').addEventListener('click', async () => {
+        try {
+          await apiFetch('/agents/server/stop', { method: 'POST' });
+          showToast('Agent HTTP server stopped');
+          updateServerStatus(false);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      function updateServerStatus(running, port) {
+        const indicator = document.getElementById('serverStatus');
+        if (running) {
+          indicator.innerHTML = '<span class="tag tag-online">Running</span>';
+          if (port) document.getElementById('serverPort').value = port;
+        } else {
+          indicator.innerHTML = '<span class="tag tag-offline">Stopped</span>';
+        }
+      }
+
+      loadAgents();
+    });
+  </script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>Remote Agents</h2>
+          <div class="subtitle">Manage SSH/HTTP agents, collect telemetry, and discover hosts</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" id="refreshAgents">&#8635; Refresh</button>
+        </div>
+      </div>
+
+      <!-- Registered Agents -->
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+          <div class="card-title">Registered Agents</div>
+        </div>
+        <div class="data-table-wrapper" style="margin-bottom:16px">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Host</th>
+                <th>Port</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="agentsBody">
+              <tr><td colspan="7">Loading agents...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-title" style="margin-bottom:12px">Register Agent</div>
+        <form id="registerForm" class="form-container">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="agentType">Type</label>
+              <select id="agentType" class="form-control">
+                <option value="SSH">SSH Agent</option>
+                <option value="HTTP">HTTP Agent</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="agentHost">Host</label>
+              <input id="agentHost" class="form-control" placeholder="192.168.1.100" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="agentPort">Port</label>
+              <input id="agentPort" class="form-control" type="number" value="22" required>
+            </div>
+            <div class="form-group">
+              <label for="agentUsername">Username (SSH)</label>
+              <input id="agentUsername" class="form-control" placeholder="root">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="agentAuthType">Auth Type</label>
+              <select id="agentAuthType" class="form-control">
+                <option value="password">Password</option>
+                <option value="key">SSH Key</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Register Agent</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Data Collection -->
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+          <div class="card-title">Data Collection</div>
+          <button class="btn btn-primary" id="collectBtn">Collect from All Agents</button>
+        </div>
+        <div class="analysis-tabs">
+          <div class="analysis-tab data-tab active" data-tab="connections">Connections</div>
+          <div class="analysis-tab data-tab" data-tab="processes">Processes</div>
+          <div class="analysis-tab data-tab" data-tab="disk">Disk</div>
+          <div class="analysis-tab data-tab" data-tab="memory">Memory</div>
+          <div class="analysis-tab data-tab" data-tab="cpu">CPU</div>
+        </div>
+        <div id="dataResults">
+          <div class="empty-state"><div class="empty-icon">&#128200;</div><h3>No Data</h3><p>Click "Collect from All Agents" to gather data.</p></div>
+        </div>
+      </div>
+
+      <!-- Agent Discovery -->
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+          <div class="card-title">Agent Discovery</div>
+        </div>
+        <form id="discoverForm" class="form-container" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="discoverSubnet">Subnet</label>
+              <input id="discoverSubnet" class="form-control" placeholder="192.168.1.0/24" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="discoverBtn" type="submit">Discover</button>
+          </div>
+        </form>
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Hostname</th>
+                <th>Open Ports</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="discoverBody">
+              <tr><td colspan="4">Enter a subnet and click Discover.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Agent HTTP Server -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Agent HTTP Server</div>
+          <div id="serverStatus"><span class="tag tag-offline">Stopped</span></div>
+        </div>
+        <div class="form-row" style="align-items:end">
+          <div class="form-group">
+            <label for="serverPort">Port</label>
+            <input id="serverPort" class="form-control" type="number" value="8080" placeholder="8080">
+          </div>
+          <div class="form-group">
+            <div class="form-actions" style="margin-top:0">
+              <button class="btn btn-primary" id="startServerBtn">Start Server</button>
+              <button class="btn btn-danger" id="stopServerBtn">Stop Server</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDS - Snort/Suricata Integration</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/app.js" defer></script>
+  <script src="/snort.js" defer></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128481; Snort/Suricata Integration</h2>
+          <div class="subtitle">Parse, validate, and convert Snort/Suricata IDS rules; correlate against network traffic</div>
+        </div>
+        <div class="header-actions">
+          <span id="correlationBadge" class="tag tag-info" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <div class="quick-action-card" onclick="switchTab('parser')">
+          <span class="qa-icon">&#128220;</span>
+          <div><div class="qa-text">Rule Parser</div><div class="qa-sub">Parse &amp; validate Snort rules</div></div>
+        </div>
+        <div class="quick-action-card" onclick="switchTab('samples')">
+          <span class="qa-icon">&#128214;</span>
+          <div><div class="qa-text">Sample Rules</div><div class="qa-sub">Built-in Snort/Suricata rules</div></div>
+        </div>
+        <div class="quick-action-card" onclick="switchTab('correlation')">
+          <span class="qa-icon">&#128200;</span>
+          <div><div class="qa-text">Correlation</div><div class="qa-sub">Match flows against rules</div></div>
+        </div>
+        <div class="quick-action-card" onclick="switchTab('convert')">
+          <span class="qa-icon">&#128295;</span>
+          <div><div class="qa-text">Convert to NIDS</div><div class="qa-sub">Convert rules to NIDS format</div></div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid" id="statsRow">
+        <div class="stat-card stat-info"><div class="stat-label">Total Rules</div><div class="stat-value" id="totalRulesStat">-</div><div class="stat-sub">Snort/Suricata rules loaded</div></div>
+        <div class="stat-card stat-success"><div class="stat-label">Valid Rules</div><div class="stat-value" id="validRulesStat">-</div><div class="stat-sub">Passed validation</div></div>
+        <div class="stat-card stat-warning"><div class="stat-label">Alerts Triggered</div><div class="stat-value" id="alertsTriggeredStat">-</div><div class="stat-sub">Correlated alerts</div></div>
+        <div class="stat-card stat-critical"><div class="stat-label">Converted Rules</div><div class="stat-value" id="convertedRulesStat">-</div><div class="stat-sub">Exported to NIDS format</div></div>
+      </div>
+
+      <div class="analysis-tabs">
+        <div class="analysis-tab active" data-tab="parser" onclick="switchTab('parser')">Rule Parser</div>
+        <div class="analysis-tab" data-tab="samples" onclick="switchTab('samples')">Sample Rules</div>
+        <div class="analysis-tab" data-tab="correlation" onclick="switchTab('correlation')">Correlation</div>
+        <div class="analysis-tab" data-tab="convert" onclick="switchTab('convert')">Convert to NIDS</div>
+      </div>
+
+      <!-- Rule Parser Tab -->
+      <div class="tab-content" id="tab-parser">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <div class="card-title">Paste Snort/Suricata Rule</div>
+          </div>
+          <div class="form-container">
+            <div class="form-group">
+              <textarea class="form-control" id="ruleInput" rows="6" placeholder="alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:&quot;ET MALWARE Possible Malicious Request&quot;; flow:to_server,established; content:&quot;GET&quot;; http_method; sid:2012345; rev:1;)"></textarea>
+              <div class="hint">Enter a single Snort or Suricata rule in standard format</div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="parseRule()">&#9881; Parse</button>
+              <button class="btn btn-info" onclick="validateRule()">&#10003; Validate</button>
+              <button class="btn btn-secondary" onclick="clearRuleInput()">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="parseResultCard" style="display:none">
+          <div class="card-header">
+            <div class="card-title">Parsed Rule Output</div>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('parseResultCard').style.display='none'">&times;</button>
+          </div>
+          <div class="form-container">
+            <div class="form-group">
+              <label>Structured JSON</label>
+              <pre class="form-control" id="parseOutput" style="font-family:'Consolas','Courier New',monospace;font-size:12px;min-height:100px;overflow:auto;white-space:pre-wrap;background:var(--bg-primary)"></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="validationResultCard" style="display:none">
+          <div class="card-header">
+            <div class="card-title">Validation Result</div>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('validationResultCard').style.display='none'">&times;</button>
+          </div>
+          <div class="form-container">
+            <div class="form-group">
+              <div id="validationOutput" style="padding:12px;border-radius:6px;font-weight:600"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sample Rules Tab -->
+      <div class="tab-content" id="tab-samples" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Built-in Sample Snort/Suricata Rules</div>
+            <button class="btn btn-secondary btn-sm" onclick="loadSampleRules()">&#8635; Refresh</button>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Protocol</th>
+                  <th>Source</th>
+                  <th>Destination</th>
+                  <th>Message</th>
+                  <th>SID</th>
+                  <th>Revision</th>
+                </tr>
+              </thead>
+              <tbody id="sampleRulesBody">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:24px">Loading sample rules...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Correlation Tab -->
+      <div class="tab-content" id="tab-correlation" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <div class="card-title">Recent Traffic Flows</div>
+            <div class="header-actions">
+              <button class="btn btn-secondary btn-sm" onclick="loadCorrelationFlows()">&#8635; Refresh</button>
+            </div>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Flow ID</th>
+                  <th>Source IP</th>
+                  <th>Dest IP</th>
+                  <th>Protocol</th>
+                  <th>Sport</th>
+                  <th>Dport</th>
+                  <th>Bytes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="correlationFlowsBody">
+                <tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:24px">Loading flows...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" id="matchedRulesCard" style="display:none">
+          <div class="card-header">
+            <div class="card-title">Matched Rules</div>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('matchedRulesCard').style.display='none'">&times;</button>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>SID</th>
+                  <th>Message</th>
+                  <th>Action</th>
+                  <th>Protocol</th>
+                  <th>Signature</th>
+                </tr>
+              </thead>
+              <tbody id="matchedRulesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Convert to NIDS Tab -->
+      <div class="tab-content" id="tab-convert" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <div class="card-title">Convert Snort Rule to NIDS Format</div>
+          </div>
+          <div class="form-container">
+            <div class="form-group">
+              <label>Snort/Suricata Rule</label>
+              <textarea class="form-control" id="convertRuleInput" rows="6" placeholder="Paste a Snort rule to convert..."></textarea>
+              <div class="hint">Enter a Snort/Suricata rule to convert to the NIDS detection rule format</div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="convertRule()">&#128295; Convert</button>
+              <button class="btn btn-secondary" onclick="document.getElementById('convertRuleInput').value=''">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="conversionResultCard" style="display:none">
+          <div class="card-header">
+            <div class="card-title">Converted NIDS Rule</div>
+            <div class="header-actions">
+              <button class="btn btn-primary btn-sm" onclick="saveConvertedRule()">&#128190; Save as New Rule</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('conversionResultCard').style.display='none'">&times;</button>
+            </div>
+          </div>
+          <div class="form-container">
+            <div class="form-group">
+              <label>NIDS Rule JSON</label>
+              <pre class="form-control" id="conversionOutput" style="font-family:'Consolas','Courier New',monospace;font-size:12px;min-height:100px;overflow:auto;white-space:pre-wrap;background:var(--bg-primary)"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let currentTab = 'parser';
+    let lastConvertedRule = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadSampleRules();
+      loadCorrelationFlows();
+    });
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.analysis-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabName).style.display = 'block';
+      document.querySelector('.analysis-tab[data-tab="' + tabName + '"]').classList.add('active');
+      currentTab = tabName;
+    }
+
+    async function loadStats() {
+      try {
+        const data = await apiFetch('/snort/correlation-stats');
+        document.getElementById('totalRulesStat').textContent = data.totalRules ?? '-';
+        document.getElementById('validRulesStat').textContent = data.validRules ?? '-';
+        document.getElementById('alertsTriggeredStat').textContent = data.alertsTriggered ?? '-';
+        document.getElementById('convertedRulesStat').textContent = data.convertedRules ?? '-';
+        if (data.alertsTriggered > 0) {
+          const badge = document.getElementById('correlationBadge');
+          badge.textContent = data.alertsTriggered + ' alert' + (data.alertsTriggered > 1 ? 's' : '');
+          badge.style.display = 'inline-block';
+        }
+      } catch {}
+    }
+
+    async function parseRule() {
+      const rule = document.getElementById('ruleInput').value.trim();
+      if (!rule) { showToast('Please enter a rule', 'error'); return; }
+      try {
+        const result = await apiFetch('/snort/parse', {
+          method: 'POST',
+          body: JSON.stringify({ rule })
+        });
+        document.getElementById('parseOutput').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('parseResultCard').style.display = 'block';
+        showToast('Rule parsed successfully');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function validateRule() {
+      const rule = document.getElementById('ruleInput').value.trim();
+      if (!rule) { showToast('Please enter a rule', 'error'); return; }
+      try {
+        const result = await apiFetch('/snort/validate', {
+          method: 'POST',
+          body: JSON.stringify({ rule })
+        });
+        const output = document.getElementById('validationOutput');
+        if (result.valid) {
+          output.innerHTML = '<span style="color:var(--accent-green)">&#10003; Rule is valid</span>';
+          output.style.background = 'rgba(63,185,80,0.1)';
+        } else {
+          output.innerHTML = '<span style="color:var(--accent-red)">&#10007; ' + (result.error || 'Rule is invalid') + '</span>';
+          output.style.background = 'rgba(248,81,73,0.1)';
+        }
+        document.getElementById('validationResultCard').style.display = 'block';
+        if (result.valid) showToast('Rule is valid');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function clearRuleInput() {
+      document.getElementById('ruleInput').value = '';
+      document.getElementById('parseResultCard').style.display = 'none';
+      document.getElementById('validationResultCard').style.display = 'none';
+    }
+
+    async function loadSampleRules() {
+      const tbody = document.getElementById('sampleRulesBody');
+      try {
+        const rules = await apiFetch('/snort/sample-rules');
+        if (!rules || rules.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:24px">No sample rules available</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rules.map(r => '<tr>' +
+          '<td>' + tagHtml(r.action) + '</td>' +
+          '<td>' + tagHtml(r.protocol) + '</td>' +
+          '<td style="font-family:monospace">' + (r.source || 'any') + '</td>' +
+          '<td style="font-family:monospace">' + (r.destination || 'any') + '</td>' +
+          '<td>' + (r.message || '-') + '</td>' +
+          '<td><strong>' + (r.sid || '-') + '</strong></td>' +
+          '<td>' + (r.rev || r.revision || '-') + '</td>' +
+        '</tr>').join('');
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:24px">Failed to load sample rules: ' + err.message + '</td></tr>';
+      }
+    }
+
+    async function loadCorrelationFlows() {
+      const tbody = document.getElementById('correlationFlowsBody');
+      document.getElementById('matchedRulesCard').style.display = 'none';
+      try {
+        const flows = await apiFetch('/network-monitoring/flows');
+        const items = Array.isArray(flows) ? flows : (flows && flows.items ? flows.items : []);
+        if (!items || items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:24px">No traffic flows available</td></tr>';
+          return;
+        }
+        tbody.innerHTML = items.map(f => {
+          const flowId = f.id || f.flowId || f._id || f.flow_id || '-';
+          const sid = f.srcIP || f.src_ip || f.source || '-';
+          const dip = f.dstIP || f.dst_ip || f.destination || '-';
+          const proto = f.proto || f.protocol || '-';
+          const sport = f.srcPort || f.src_port || '-';
+          const dport = f.dstPort || f.dst_port || '-';
+          const bytes = f.bytes ?? '-';
+          return '<tr>' +
+            '<td style="font-family:monospace;font-size:11px">' + (typeof flowId === 'string' ? flowId.substring(0, 12) : flowId) + '</td>' +
+            '<td style="font-family:monospace">' + sid + '</td>' +
+            '<td style="font-family:monospace">' + dip + '</td>' +
+            '<td>' + tagHtml(proto) + '</td>' +
+            '<td>' + sport + '</td>' +
+            '<td>' + dport + '</td>' +
+            '<td>' + bytes + '</td>' +
+            '<td><button class="btn btn-info btn-sm" onclick="correlateFlow(\'' + flowId + '\')">Correlate</button></td>' +
+          '</tr>';
+        }).join('');
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--accent-red);padding:24px">Failed to load flows: ' + err.message + '</td></tr>';
+      }
+    }
+
+    async function correlateFlow(flowId) {
+      const tbody = document.getElementById('matchedRulesBody');
+      try {
+        showLoading('Correlating flow');
+        const result = await apiFetch('/snort/correlate', {
+          method: 'POST',
+          body: JSON.stringify({ flowId })
+        });
+        const matches = result.matches || result || [];
+        if (!matches.length) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:24px">No rules matched this flow</td></tr>';
+        } else {
+          tbody.innerHTML = matches.map(m => '<tr>' +
+            '<td><strong>' + (m.sid || '-') + '</strong></td>' +
+            '<td>' + (m.message || '-') + '</td>' +
+            '<td>' + tagHtml(m.action || 'alert') + '</td>' +
+            '<td>' + tagHtml(m.protocol || '-') + '</td>' +
+            '<td style="font-family:monospace;font-size:11px">' + (m.signature || m.rule || '-') + '</td>' +
+          '</tr>').join('');
+        }
+        document.getElementById('matchedRulesCard').style.display = 'block';
+        if (matches.length) showToast('Found ' + matches.length + ' matching rule' + (matches.length > 1 ? 's' : ''));
+        hideLoading();
+      } catch (err) {
+        hideLoading();
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--accent-red);padding:24px">Correlation failed: ' + err.message + '</td></tr>';
+        document.getElementById('matchedRulesCard').style.display = 'block';
+      }
+    }
+
+    async function convertRule() {
+      const rule = document.getElementById('convertRuleInput').value.trim();
+      if (!rule) { showToast('Please enter a Snort rule to convert', 'error'); return; }
+      try {
+        const result = await apiFetch('/snort/convert', {
+          method: 'POST',
+          body: JSON.stringify({ rule })
+        });
+        lastConvertedRule = result;
+        document.getElementById('conversionOutput').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('conversionResultCard').style.display = 'block';
+        showToast('Rule converted successfully');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function saveConvertedRule() {
+      if (!lastConvertedRule) { showToast('No converted rule to save', 'error'); return; }
+      try {
+        const payload = lastConvertedRule.id ? lastConvertedRule : { ...lastConvertedRule, id: 'snort-converted-' + Date.now() };
+        await apiFetch('/rules', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        showToast('Rule saved successfully');
+        document.getElementById('convertRuleInput').value = '';
+        document.getElementById('conversionResultCard').style.display = 'none';
+        lastConvertedRule = null;
+        loadStats();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

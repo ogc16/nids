@@ -10,13 +10,25 @@ const https = require('https');
 const multer = require('multer');
 
 const config = require('./lib/config');
-const { authenticate, optionalAuth, authorize, ROLES, seedAdminUser, loginRoute, meRoute, listUsersRoute, createUserRoute, updateUserRoute, deleteUserRoute } = require('./lib/auth');
+const { authenticate, optionalAuth, authorize, ROLES, seedAdminUser, loginRoute, changePasswordRoute, meRoute, listUsersRoute, createUserRoute, updateUserRoute, deleteUserRoute, csrfProtection } = require('./lib/auth');
 const { validate, schemas } = require('./lib/validate');
 const { audit, getAuditLog } = require('./lib/audit');
 const { errorHandler, notFoundHandler, AppError, ValidationError, NotFoundError } = require('./lib/errors');
 const { loadCerts } = require('./lib/tls');
 const pcap = require('./lib/pcap');
 const monitor = require('./lib/monitor');
+const db = require('./lib/db');
+const alerting = require('./lib/alerting');
+const mitre = require('./lib/mitre');
+const syslog = require('./lib/syslog');
+const snort = require('./lib/snort');
+const agent = require('./lib/agent');
+const soar = require('./lib/soar');
+const fim = require('./lib/fim');
+const vulnscan = require('./lib/vulnscan');
+const compliance = require('./lib/compliance');
+const ml = require('./lib/ml');
+const retention = require('./lib/retention');
 
 const app = express();
 const DATA_DIR = config.dataDir;
@@ -44,9 +56,24 @@ app.use((req, res, next) => {
 // Serve static files; auto-append .html for clean URLs
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
-// Global rate limiting
+// Global rate limiting (apply to all routes, not just /api/)
+app.use(rateLimit({ windowMs: config.rateLimitWindowMs, max: config.rateLimitMax * 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests' } }));
 app.use('/api/', rateLimit({ windowMs: config.rateLimitWindowMs, max: config.rateLimitMax, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests' } }));
 app.use('/api/auth/', rateLimit({ windowMs: config.rateLimitWindowMs, max: config.authRateLimitMax, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many auth attempts' } }));
+
+// CSRF protection for state-changing requests (skip login, change-password, and unauthenticated requests)
+app.use('/api/', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/change-password')) return next();
+  // Only enforce CSRF if the request has an auth cookie (authenticated session)
+  if (!req.cookies?.[config.cookieName]) return next();
+  const token = req.headers['x-csrf-token'] || req.body?._csrf;
+  const expected = req.cookies?.['csrf-token'];
+  if (!expected || !token || token !== expected) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+  next();
+});
 
 const tables = ['incidents', 'detection-rules', 'threat-intel', 'engineering-tasks', 'network-assets', 'qa-tests', 'network-traffic', 'playbooks', 'security-policies', 'security-standards'];
 
@@ -60,37 +87,19 @@ const CSF_FUNCTIONS = [
 ];
 
 function readTable(name) {
-  const file = path.join(DATA_DIR, `${name}.json`);
-  const raw = fs.readFileSync(file, 'utf8');
-  return JSON.parse(raw);
+  return db.readTable(name);
 }
 
 function writeTable(name, data) {
-  const file = path.join(DATA_DIR, `${name}.json`);
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  db.writeTable(name, data);
 }
 
 function nextId(data) {
-  return data.reduce((max, d) => Math.max(max, d.id), 0) + 1;
+  return db.nextId(data);
 }
 
-// Paginated read
 function readTablePaginated(name, query) {
-  let data = readTable(name);
-  const page = Math.max(1, parseInt(query.page) || 1);
-  const limit = Math.min(config.maxPageSize, Math.max(1, parseInt(query.limit) || config.defaultPageSize));
-  const total = data.length;
-
-  if (query.search && query.searchField) {
-    const terms = query.search.toLowerCase();
-    data = data.filter(d => String(d[query.searchField] || '').toLowerCase().includes(terms));
-  }
-
-  const totalFiltered = data.length;
-  const offset = (page - 1) * limit;
-  const items = data.slice(offset, offset + limit);
-
-  return { items, pagination: { page, limit, total, totalFiltered, totalPages: Math.ceil(totalFiltered / limit) } };
+  return db.readTablePaginated(name, query);
 }
 
 // ---- Auth Routes ----
@@ -266,7 +275,8 @@ ALL_TABLES.forEach(table => {
     const csv = [headers.join(','), ...data.map(row => headers.map(h => {
       const val = row[h];
       if (val === null || val === undefined) return '';
-      const str = String(val);
+      let str = String(val);
+      if (['=', '+', '-', '@', '\t'].includes(str[0])) str = "'" + str;
       return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
     }).join(','))].join('\n');
     res.setHeader('Content-Type', 'text/csv');
@@ -656,7 +666,7 @@ const HTTP_CONTENT_TYPES = ['application/json', 'text/html', 'text/css', 'applic
 
 let sseClients = [];
 
-app.get('/api/events', (req, res) => {
+app.get('/api/events', authenticate, (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -664,7 +674,7 @@ app.get('/api/events', (req, res) => {
   });
   res.write('data: {"type":"connected"}\n\n');
   const id = Date.now();
-  sseClients.push({ id, res });
+  sseClients.push({ id, res, user: req.user });
   req.on('close', () => { sseClients = sseClients.filter(c => c.id !== id); });
 });
 
@@ -839,8 +849,7 @@ app.get('/api/asset-logs', authenticate, authorize('admin', 'analyst'), (req, re
 });
 
 function readTableSafe(name) {
-  const file = path.join(DATA_DIR, `${name}.json`);
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; }
+  return db.readTableSafe(name);
 }
 
 function generateHttpFields(protocol) {
@@ -937,7 +946,7 @@ app.get('/api/pcap/captures/:id', authenticate, authorize('admin', 'analyst'), a
   try {
     const record = await pcap.getCaptureMetadata(req.params.id);
     res.json(record);
-  } catch (e) { next(new NotFoundError(e.message)); }
+  } catch (e) { next(new NotFoundError('Capture')); }
 });
 
 app.delete('/api/pcap/captures/:id', authenticate, authorize('admin'), async (req, res, next) => {
@@ -948,7 +957,7 @@ app.delete('/api/pcap/captures/:id', authenticate, authorize('admin'), async (re
     pcap.writeMeta(meta.filter(m => m.id !== parseInt(req.params.id)));
     audit('pcap_delete', req, { id: parseInt(req.params.id), originalName: record.originalName });
     res.status(204).send();
-  } catch (e) { next(new NotFoundError(e.message)); }
+  } catch (e) { next(new NotFoundError('Capture')); }
 });
 
 app.get('/api/pcap/captures/:id/analysis/protocols', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
@@ -988,7 +997,7 @@ app.get('/api/pcap/captures/:id/export', authenticate, authorize('admin', 'analy
   try {
     const { record, filePath } = await pcap.getPcapFile(req.params.id);
     res.download(filePath, record.originalName);
-  } catch (e) { next(new NotFoundError(e.message)); }
+  } catch (e) { next(new NotFoundError('Capture')); }
 });
 
 app.get('/api/pcap/captures/:id/analysis/http', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
@@ -1006,7 +1015,8 @@ app.get('/api/web-traffic/export', authenticate, (req, res) => {
   const csv = [headers.join(','), ...data.map(row => headers.map(h => {
     const val = row[h];
     if (val === null || val === undefined) return '';
-    const str = String(val);
+    let str = String(val);
+    if (['=', '+', '-', '@', '\t'].includes(str[0])) str = "'" + str;
     return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
   }).join(','))].join('\n');
   res.setHeader('Content-Type', 'text/csv');
@@ -1094,6 +1104,21 @@ function evaluateTokens(tokens, item) {
   return result;
 }
 
+function safeRegexTest(pattern, str, timeoutMs = 1000) {
+  return new Promise((resolve) => {
+    let result = false;
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; resolve(false); }, timeoutMs);
+    try {
+      const re = new RegExp(pattern, 'i');
+      const testStr = String(str);
+      const run = () => { if (!timedOut) { result = re.test(testStr); clearTimeout(timer); resolve(result); } };
+      if (typeof setImmediate === 'function') setImmediate(run);
+      else run();
+    } catch { clearTimeout(timer); resolve(false); }
+  });
+}
+
 function evaluateSingleExpr(token, item) {
   const match = token.match(/^([\w.]+)\s*([!=<>]+|contains|matches)\s*(.+)$/i);
   if (!match) {
@@ -1113,7 +1138,14 @@ function evaluateSingleExpr(token, item) {
     case '>=': return parseFloat(strVal) >= parseFloat(value);
     case '<=': return parseFloat(strVal) <= parseFloat(value);
     case 'contains': return strVal.includes(value);
-    case 'matches': try { return new RegExp(value, 'i').test(strVal); } catch { return false; }
+    case 'matches':
+      try {
+        const re = new RegExp(value, 'i');
+        const timeoutId = setTimeout(() => { throw new Error('Regex timeout'); }, 1000);
+        const result = re.test(strVal);
+        clearTimeout(timeoutId);
+        return result;
+      } catch { return false; }
     default: return true;
   }
 }
@@ -1139,11 +1171,9 @@ function getNidsFieldValue(field, item) {
 }
 
 // ---- TShark status ----
-app.get('/api/pcap/status', optionalAuth, (req, res) => {
+app.get('/api/pcap/status', authenticate, (req, res) => {
   res.json({
     tsharkAvailable: pcap.isTsharkAvailable(),
-    tsharkPath: pcap.findTshark(),
-    captureDir: pcap.PCAP_DIR,
     captureCount: pcap.readMeta().length
   });
 });
@@ -1176,7 +1206,7 @@ app.get('/api/monitor/process/:pid', authenticate, authorize('admin', 'analyst')
   }
 });
 
-app.get('/api/monitor/interfaces', optionalAuth, (req, res) => {
+app.get('/api/monitor/interfaces', authenticate, authorize('admin', 'analyst'), (req, res) => {
   try {
     const ifaces = monitor.getTrafficStats();
     res.json(Array.isArray(ifaces) ? ifaces : []);
@@ -1185,7 +1215,7 @@ app.get('/api/monitor/interfaces', optionalAuth, (req, res) => {
   }
 });
 
-app.get('/api/monitor/system', optionalAuth, (req, res) => {
+app.get('/api/monitor/system', authenticate, authorize('admin', 'analyst'), (req, res) => {
   try {
     const info = monitor.getSystemInfo();
     res.json(info || {});
@@ -1203,7 +1233,7 @@ app.get('/api/monitor/bandwidth', authenticate, authorize('admin', 'analyst'), (
   }
 });
 
-app.get('/api/monitor/arp', optionalAuth, (req, res) => {
+app.get('/api/monitor/arp', authenticate, authorize('admin', 'analyst'), (req, res) => {
   try {
     const arp = monitor.getArpTable();
     res.json(Array.isArray(arp) ? arp : []);
@@ -1268,6 +1298,579 @@ app.post('/api/network-traffic/auto-simulate', authenticate, authorize('admin', 
   res.json({ status: 'simulation_started', interval });
 });
 
+// ---- Change Password ----
+app.post('/api/auth/change-password', authenticate, (req, res, next) => {
+  try { changePasswordRoute(req, res); } catch (err) { next(err); }
+});
+
+// ---- Logout ----
+app.post('/api/auth/logout', authenticate, (req, res) => {
+  res.clearCookie(config.cookieName, { path: '/' });
+  res.clearCookie('csrf-token', { path: '/' });
+  res.json({ status: 'ok', message: 'Logged out' });
+});
+
+// ---- MITRE ATT&CK Framework ----
+app.get('/api/mitre/tactics', optionalAuth, (req, res) => {
+  res.json(mitre.getTactics());
+});
+
+app.get('/api/mitre/techniques', optionalAuth, (req, res) => {
+  const { tactic, platform, search: searchQuery } = req.query;
+  let techniques = mitre.getTechniques();
+  if (tactic) techniques = techniques.filter(t => t.tacticId === tactic);
+  if (platform) techniques = mitre.getTechniquesByPlatform(platform);
+  if (searchQuery) techniques = mitre.search(searchQuery);
+  res.json(techniques);
+});
+
+app.get('/api/mitre/techniques/:id', optionalAuth, (req, res) => {
+  const technique = mitre.getTechniqueById(req.params.id);
+  if (!technique) return res.status(404).json({ error: 'Technique not found' });
+  res.json(technique);
+});
+
+app.get('/api/mitre/tactics/:id', optionalAuth, (req, res) => {
+  const tactic = mitre.getTacticById(req.params.id);
+  if (!tactic) return res.status(404).json({ error: 'Tactic not found' });
+  const techniques = mitre.getTechniquesByTactic(req.params.id);
+  res.json({ ...tactic, techniques });
+});
+
+app.post('/api/mitre/map-attack-type', authenticate, (req, res) => {
+  const { attackType } = req.body || {};
+  if (!attackType) return res.status(400).json({ error: 'attackType required' });
+  const techniques = mitre.mapAttackTypeToTechniques(attackType);
+  const detections = mitre.getRecommendedDetections(techniques.map(t => t.id));
+  res.json({ attackType, mappedTechniques: techniques, recommendedDetections: detections });
+});
+
+// ---- Syslog Collection ----
+let syslogServerRunning = false;
+app.post('/api/syslog/start', authenticate, authorize('admin'), (req, res) => {
+  if (syslogServerRunning) return res.json({ status: 'already_running' });
+  const { udpPort = 514, tcpPort = 601, udp = true, tcp = false } = req.body || {};
+  try {
+    syslog.startSyslogServer({ udp, tcp, udpPort, tcpPort });
+    syslogServerRunning = true;
+    audit('syslog_start', req, { udp, tcp, udpPort, tcpPort });
+    res.json({ status: 'started', udp, tcp, udpPort, tcpPort });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/syslog/stop', authenticate, authorize('admin'), (req, res) => {
+  syslog.stopSyslogServer();
+  syslogServerRunning = false;
+  audit('syslog_stop', req, {});
+  res.json({ status: 'stopped' });
+});
+
+app.get('/api/syslog/logs', authenticate, (req, res) => {
+  const limit = Math.min(500, parseInt(req.query.limit) || 100);
+  const offset = Math.max(0, parseInt(req.query.offset) || 0);
+  res.json(syslog.getCollectedLogs(limit, offset));
+});
+
+app.get('/api/syslog/stats', authenticate, (req, res) => {
+  res.json(syslog.getLogStats());
+});
+
+app.post('/api/syslog/clear', authenticate, authorize('admin'), (req, res) => {
+  syslog.clearLogs();
+  res.json({ status: 'cleared' });
+});
+
+app.get('/api/syslog/status', authenticate, (req, res) => {
+  res.json({ running: syslogServerRunning });
+});
+
+// Windows Events
+app.get('/api/syslog/windows-events', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const { logName = 'Security', maxEvents = 100, eventIds } = req.query;
+    const events = await syslog.getWindowsEvents({ logName, maxEvents: parseInt(maxEvents), eventIds: eventIds ? eventIds.split(',').map(Number) : [] });
+    res.json(Array.isArray(events) ? events : []);
+  } catch (err) { res.json([]); }
+});
+
+app.get('/api/syslog/windows-logs', authenticate, authorize('admin'), (req, res) => {
+  try {
+    const logs = syslog.getEventLogs();
+    res.json(Array.isArray(logs) ? logs : []);
+  } catch (err) { res.json([]); }
+});
+
+// ---- Snort/Suricata Integration ----
+app.post('/api/snort/parse', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { rule } = req.body || {};
+  if (!rule) return res.status(400).json({ error: 'rule string required' });
+  try {
+    const parsed = snort.parseRule(rule);
+    res.json(parsed);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/snort/validate', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { rule } = req.body || {};
+  if (!rule) return res.status(400).json({ error: 'rule string required' });
+  const result = snort.validateRule(rule);
+  res.json(result);
+});
+
+app.post('/api/snort/convert', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { rule } = req.body || {};
+  if (!rule) return res.status(400).json({ error: 'rule string required' });
+  try {
+    const parsed = snort.parseRule(rule);
+    const nidsRule = snort.convertToNidsRule(parsed);
+    res.json({ snortRule: parsed, nidsRule });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/snort/sample-rules', optionalAuth, (req, res) => {
+  res.json(snort.exportSampleRules ? snort.exportSampleRules() : snort.parseRules([]));
+});
+
+app.post('/api/snort/correlate', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { flowId } = req.body || {};
+  if (!flowId) return res.status(400).json({ error: 'flowId required' });
+  const traffic = readTable('network-traffic');
+  const flow = traffic.find(f => f.id === parseInt(flowId));
+  if (!flow) return res.status(404).json({ error: 'Flow not found' });
+  const rules = readTable('detection-rules');
+  const correlation = snort.correlateAlert(flow, rules);
+  res.json(correlation);
+});
+
+app.get('/api/snort/correlation-stats', authenticate, (req, res) => {
+  res.json(snort.getCorrelationStats());
+});
+
+// ---- Remote Agent Monitoring ----
+app.get('/api/agents', authenticate, (req, res) => {
+  res.json(agent.getRegisteredAgents());
+});
+
+app.post('/api/agents/register', authenticate, authorize('admin'), (req, res) => {
+  const { type, host, port, username, authType } = req.body || {};
+  if (!type || !host) return res.status(400).json({ error: 'type and host required' });
+  const result = agent.registerAgent({ type, host, port: port || 22, username: username || 'root', authType: authType || 'password', ...req.body });
+  audit('agent_registered', req, { host, type });
+  res.status(201).json(result);
+});
+
+app.delete('/api/agents/:id', authenticate, authorize('admin'), (req, res) => {
+  agent.removeAgent(req.params.id);
+  res.status(204).send();
+});
+
+app.post('/api/agents/collect', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const results = await agent.collectFromAllAgents();
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
+app.post('/api/agents/discover', authenticate, authorize('admin'), (req, res) => {
+  const { subnet } = req.body || {};
+  if (!subnet) return res.status(400).json({ error: 'subnet required' });
+  const discovered = agent.discoverAgents(subnet);
+  res.json(discovered);
+});
+
+// Agent HTTP server
+app.post('/api/agents/server/start', authenticate, authorize('admin'), (req, res) => {
+  const { port = 9100 } = req.body || {};
+  try {
+    agent.startAgentServer(port);
+    res.json({ status: 'started', port });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/agents/server/stop', authenticate, authorize('admin'), (req, res) => {
+  agent.stopAgentServer();
+  res.json({ status: 'stopped' });
+});
+
+// ---- SOAR Playbook Engine ----
+app.get('/api/soar/playbooks/builtin', optionalAuth, (req, res) => {
+  res.json(soar.getBuiltinPlaybooks());
+});
+
+app.get('/api/soar/playbooks/builtin/:name', optionalAuth, (req, res) => {
+  const pb = soar.getBuiltinPlaybook(req.params.name);
+  if (!pb) return res.status(404).json({ error: 'Playbook not found' });
+  res.json(pb);
+});
+
+app.post('/api/soar/execute', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  const { playbookId, context = {} } = req.body || {};
+  if (!playbookId) return res.status(400).json({ error: 'playbookId required' });
+
+  let playbook;
+  const storedPlaybooks = readTableSafe('playbooks');
+  playbook = storedPlaybooks.find(p => p.id === parseInt(playbookId) || p.id === playbookId);
+  if (!playbook) playbook = soar.getBuiltinPlaybook(playbookId);
+  if (!playbook) return res.status(404).json({ error: 'Playbook not found' });
+
+  try {
+    const executionId = await soar.startPlaybook(playbook, context);
+    audit('soar_execution_started', req, { playbookId: playbook.id || playbook.name, executionId });
+    res.status(201).json({ executionId, status: 'started', playbook: playbook.name });
+  } catch (err) { next(err); }
+});
+
+app.post('/api/soar/stop/:executionId', authenticate, authorize('admin'), (req, res) => {
+  soar.stopPlaybook(req.params.executionId);
+  res.json({ status: 'stopped' });
+});
+
+app.get('/api/soar/executions', authenticate, (req, res) => {
+  const { status } = req.query;
+  const filters = {};
+  if (status) filters.status = status;
+  res.json(soar.listExecutions(filters));
+});
+
+app.get('/api/soar/executions/:executionId', authenticate, (req, res) => {
+  const exec = soar.getPlaybookStatus(req.params.executionId);
+  if (!exec) return res.status(404).json({ error: 'Execution not found' });
+  res.json(exec);
+});
+
+app.delete('/api/soar/executions', authenticate, authorize('admin'), (req, res) => {
+  soar.clearExecutions();
+  res.status(204).send();
+});
+
+// ---- File Integrity Monitoring ----
+app.get('/api/fim/baseline', authenticate, (req, res) => {
+  res.json(fim.getBaseline());
+});
+
+app.post('/api/fim/baseline', authenticate, authorize('admin'), (req, res) => {
+  const { paths } = req.body || {};
+  if (!paths || !Array.isArray(paths) || paths.length === 0) return res.status(400).json({ error: 'paths array required' });
+  try {
+    const baseline = fim.createBaseline(paths);
+    audit('fim_baseline_created', req, { fileCount: baseline.length });
+    res.status(201).json({ fileCount: baseline.length, baseline });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/fim/baseline/add', authenticate, authorize('admin'), (req, res) => {
+  const { filePath } = req.body || {};
+  if (!filePath) return res.status(400).json({ error: 'filePath required' });
+  try {
+    const entry = fim.addToBaseline(filePath);
+    res.status(201).json(entry);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.delete('/api/fim/baseline', authenticate, authorize('admin'), (req, res) => {
+  const { filePath } = req.body || {};
+  if (filePath) fim.removeFromBaseline(filePath);
+  else fim.clearBaseline();
+  res.status(204).send();
+});
+
+app.post('/api/fim/scan', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const result = fim.runScan();
+    audit('fim_scan', req, { changed: result.changed.length, added: result.added.length, removed: result.removed.length });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/fim/scans', authenticate, (req, res) => {
+  const limit = Math.min(100, parseInt(req.query.limit) || 10);
+  res.json(fim.getScanHistory(limit));
+});
+
+app.get('/api/fim/last-scan', authenticate, (req, res) => {
+  res.json(fim.getLastScan() || { status: 'no_scans' });
+});
+
+app.post('/api/fim/watch/start', authenticate, authorize('admin'), (req, res) => {
+  const { interval = 60 } = req.body || {};
+  fim.startWatcher(interval * 1000);
+  res.json({ status: 'watching', interval });
+});
+
+app.post('/api/fim/watch/stop', authenticate, authorize('admin'), (req, res) => {
+  fim.stopWatcher();
+  res.json({ status: 'stopped' });
+});
+
+app.get('/api/fim/report', authenticate, (req, res) => {
+  res.json(fim.getFIMReport ? fim.getFIMReport() : {});
+});
+
+app.get('/api/fim/config', authenticate, (req, res) => {
+  res.json(fim.getConfig ? fim.getConfig() : {});
+});
+
+app.put('/api/fim/config', authenticate, authorize('admin'), (req, res) => {
+  if (fim.saveConfig) fim.saveConfig(req.body);
+  res.json({ status: 'ok' });
+});
+
+// ---- Vulnerability Scanning ----
+app.post('/api/vulnscan/scan', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { targets } = req.body || {};
+  if (!targets || !Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: 'targets array required' });
+  const scanId = vulnscan.startScan(targets);
+  audit('vulnscan_started', req, { targets, scanId });
+  res.status(201).json({ scanId, targets, status: 'running' });
+});
+
+app.get('/api/vulnscan/scans', authenticate, (req, res) => {
+  res.json(vulnscan.getScanHistory());
+});
+
+app.get('/api/vulnscan/scan/:scanId', authenticate, (req, res) => {
+  const scan = vulnscan.getScanStatus(req.params.scanId);
+  if (!scan) return res.status(404).json({ error: 'Scan not found' });
+  res.json(scan);
+});
+
+app.get('/api/vulnscan/scan/:scanId/results', authenticate, (req, res) => {
+  const results = vulnscan.getScanResults(req.params.scanId);
+  if (!results) return res.status(404).json({ error: 'Scan not found or not completed' });
+  res.json(results);
+});
+
+app.post('/api/vulnscan/scan/:scanId/cancel', authenticate, authorize('admin'), (req, res) => {
+  vulnscan.cancelScan(req.params.scanId);
+  res.json({ status: 'cancelled' });
+});
+
+app.post('/api/vulnscan/assess-asset', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { assetId } = req.body || {};
+  if (!assetId) return res.status(400).json({ error: 'assetId required' });
+  const assets = readTable('network-assets');
+  const asset = assets.find(a => a.id === parseInt(assetId));
+  if (!asset) return res.status(404).json({ error: 'Asset not found' });
+  const assessment = vulnscan.assessAsset(asset);
+  res.json(assessment);
+});
+
+app.get('/api/vulnscan/vulnerabilities', optionalAuth, (req, res) => {
+  const { severity, search } = req.query;
+  let vulns = vulnscan.vulnerabilityDatabase || [];
+  if (severity) vulns = vulns.filter(v => v.severity === severity);
+  if (search) vulns = vulns.filter(v => v.description.toLowerCase().includes(search.toLowerCase()) || v.id.toLowerCase().includes(search.toLowerCase()));
+  res.json(vulns);
+});
+
+app.get('/api/vulnscan/report', authenticate, (req, res) => {
+  res.json(vulnscan.getVulnerabilityReport ? vulnscan.getVulnerabilityReport({}) : {});
+});
+
+// ---- Compliance Reporting ----
+app.get('/api/compliance/frameworks', optionalAuth, (req, res) => {
+  res.json([
+    { id: 'pci-dss', name: 'PCI DSS v4.0', controls: compliance.pciDssData ? compliance.pciDssData.length : 0 },
+    { id: 'hipaa', name: 'HIPAA Security Rule', controls: compliance.hipaaData ? compliance.hipaaData.length : 0 },
+    { id: 'gdpr', name: 'GDPR', controls: compliance.gdprData ? compliance.gdprData.length : 0 }
+  ]);
+});
+
+app.get('/api/compliance/:framework', optionalAuth, (req, res) => {
+  const { framework } = req.params;
+  const valid = ['pci-dss', 'hipaa', 'gdpr'];
+  if (!valid.includes(framework)) return res.status(400).json({ error: `Framework must be one of: ${valid.join(', ')}` });
+  const status = compliance.getComplianceStatus(framework);
+  res.json(status);
+});
+
+app.get('/api/compliance/:framework/controls', optionalAuth, (req, res) => {
+  const { framework } = req.params;
+  const data = { 'pci-dss': compliance.pciDssData, 'hipaa': compliance.hipaaData, 'gdpr': compliance.gdprData }[framework];
+  res.json(data || []);
+});
+
+app.get('/api/compliance/:framework/report', authenticate, (req, res) => {
+  const { framework } = req.params;
+  const report = compliance.generateReport(framework, { format: 'json' });
+  res.json(report);
+});
+
+app.get('/api/compliance/dashboard', authenticate, (req, res) => {
+  const dashboard = {};
+  for (const fw of ['pci-dss', 'hipaa', 'gdpr']) {
+    dashboard[fw] = compliance.getComplianceStatus(fw);
+  }
+  res.json(dashboard);
+});
+
+app.get('/api/compliance/evidence/:framework/:controlId', authenticate, (req, res) => {
+  const evidence = compliance.collectEvidence(req.params.framework, req.params.controlId);
+  res.json(evidence);
+});
+
+app.get('/api/compliance/recommendations', authenticate, (req, res) => {
+  const frameworks = req.query.frameworks ? req.query.frameworks.split(',') : ['pci-dss', 'hipaa', 'gdpr'];
+  const recommendations = [];
+  for (const fw of frameworks) {
+    const status = compliance.getComplianceStatus(fw);
+    if (status.recommendations) recommendations.push(...status.recommendations.map(r => ({ ...r, framework: fw })));
+  }
+  res.json(recommendations);
+});
+
+// ---- Anomaly/ML Detection ----
+app.post('/api/ml/detect-anomalies', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { data, field, method = 'zscore', threshold = 3 } = req.body || {};
+  if (!data || !field) return res.status(400).json({ error: 'data and field required' });
+  try {
+    const result = ml.detectAnomalies(data, field, { method, threshold });
+    res.json(result);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/ml/traffic-baseline', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const traffic = readTable('network-traffic');
+  const baseline = ml.buildTrafficBaseline(traffic);
+  ml.saveModel('traffic-baseline', baseline);
+  res.json({ status: 'baseline_built', recordCount: traffic.length, timestamp: baseline.lastUpdated });
+});
+
+app.post('/api/ml/detect-traffic-anomalies', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  let baseline;
+  try { baseline = ml.loadModel('traffic-baseline'); } catch { baseline = null; }
+  if (!baseline) return res.status(400).json({ error: 'No traffic baseline. Build one first via POST /api/ml/traffic-baseline' });
+  const traffic = readTable('network-traffic');
+  const anomalies = ml.detectTrafficAnomalies(traffic, baseline);
+  res.json(anomalies);
+});
+
+app.post('/api/ml/threshold-rule', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const { name, field, operator, value, window, cooldown } = req.body || {};
+  if (!name || !field || !operator || value === undefined) return res.status(400).json({ error: 'name, field, operator, value required' });
+  const rule = ml.createThresholdRule(name, { field, operator, value, window: window || 300, cooldown: cooldown || 600 });
+  res.status(201).json(rule);
+});
+
+app.get('/api/ml/threshold-rules', authenticate, (req, res) => {
+  res.json(ml.getActiveThresholds());
+});
+
+app.get('/api/ml/models', authenticate, (req, res) => {
+  res.json(ml.listModels());
+});
+
+app.delete('/api/ml/models/:name', authenticate, authorize('admin'), (req, res) => {
+  ml.deleteModel(req.params.name);
+  res.status(204).send();
+});
+
+// ---- Data Retention ----
+app.get('/api/retention/policies', authenticate, (req, res) => {
+  res.json(retention.getPolicies());
+});
+
+app.post('/api/retention/policies', authenticate, authorize('admin'), (req, res) => {
+  const policy = retention.savePolicy(req.body);
+  res.status(201).json(policy);
+});
+
+app.delete('/api/retention/policies/:id', authenticate, authorize('admin'), (req, res) => {
+  retention.deletePolicy(req.params.id);
+  res.status(204).send();
+});
+
+app.post('/api/retention/run', authenticate, authorize('admin'), (req, res) => {
+  const result = retention.runOnce();
+  audit('retention_run', req, { purged: result.purged, archived: result.archived });
+  res.json(result);
+});
+
+app.get('/api/retention/report', authenticate, (req, res) => {
+  res.json(retention.getRetentionReport());
+});
+
+app.get('/api/retention/archives', authenticate, (req, res) => {
+  res.json(retention.getArchives ? retention.getArchives() : []);
+});
+
+app.post('/api/retention/archives/:id/restore', authenticate, authorize('admin'), (req, res) => {
+  const result = retention.restoreArchive(req.params.id);
+  res.json(result || { status: 'restored' });
+});
+
+app.delete('/api/retention/archives/:id', authenticate, authorize('admin'), (req, res) => {
+  retention.deleteArchive(req.params.id);
+  res.status(204).send();
+});
+
+app.get('/api/retention/holds', authenticate, (req, res) => {
+  res.json(retention.getLegalHolds());
+});
+
+app.post('/api/retention/holds', authenticate, authorize('admin'), (req, res) => {
+  const hold = retention.addLegalHold(req.body);
+  res.status(201).json(hold);
+});
+
+app.delete('/api/retention/holds/:id', authenticate, authorize('admin'), (req, res) => {
+  retention.removeLegalHold(req.params.id);
+  res.status(204).send();
+});
+
+app.get('/api/retention/storage-forecast', authenticate, (req, res) => {
+  const days = parseInt(req.query.days) || 90;
+  res.json(retention.getStorageForecast(days));
+});
+
+// ---- Alerting Configuration ----
+app.get('/api/alerting/config', authenticate, (req, res) => {
+  res.json(alerting.getConfig());
+});
+
+app.put('/api/alerting/config', authenticate, authorize('admin'), (req, res) => {
+  alerting.saveConfig(req.body);
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/alerting/test', authenticate, authorize('admin'), async (req, res) => {
+  const { type = 'email' } = req.body || {};
+  const config = alerting.getConfig();
+  let result;
+  if (type === 'email' && config.email.enabled) {
+    result = await alerting.sendEmail({ to: config.email.to || 'test@example.com', subject: 'NIDS Alert Test', html: '<h1>Test Alert</h1><p>This is a test notification from NIDS Enterprise.</p>' });
+  } else if (type === 'slack' && config.slack.enabled) {
+    result = await alerting.sendSlack({ webhookUrl: config.slack.webhookUrl, text: 'NIDS Test Alert - This is a test notification.' });
+  } else if (type === 'webhook' && config.webhook.enabled) {
+    result = await alerting.sendWebhook({ url: config.webhook.url, method: config.webhook.method || 'POST', body: { test: true, message: 'NIDS Test Alert' } });
+  }
+  res.json(result || { success: false, error: `${type} not configured or disabled` });
+});
+
+// ---- Database Stats ----
+app.get('/api/db/stats', authenticate, authorize('admin'), (req, res) => {
+  res.json(db.getStats());
+});
+
+// Integrate alerting into automations
+const originalRunAutomations = runAutomations;
+runAutomations = function(event, item, allData, oldItem) {
+  originalRunAutomations(event, item, allData, oldItem);
+  try {
+    alerting.notify(event, { item, timestamp: new Date().toISOString(), user: 'system' });
+  } catch (err) {
+    console.error('[Alerting] Failed to notify:', err.message);
+  }
+};
+
 // ---- Error handling ----
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -1281,12 +1884,12 @@ if (tls) {
   https.createServer(tls, app).listen(config.https.port, config.host, () => {
     console.log(`NIDS Enterprise running at https://localhost:${config.https.port}`);
     console.log(`  Auth: POST /api/auth/login`);
-    console.log(`  Default: admin:admin — CHANGE PASSWORD IMMEDIATELY`);
+    console.log(`  CSRF: Include X-CSRF-Token header (get from csrf-token cookie on login)`);
   });
 }
 
 app.listen(config.port, config.host, () => {
   console.log(`NIDS Enterprise running at http://localhost:${config.port}`);
   console.log(`  Auth: POST /api/auth/login`);
-  console.log(`  Default: admin:admin — CHANGE PASSWORD IMMEDIATELY`);
+  console.log(`  CSRF: Include X-CSRF-Token header (get from csrf-token cookie on login)`);
 });

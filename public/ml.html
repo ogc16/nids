@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ML Anomaly Detection - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .ml-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; gap:4px; }
+    .ml-tab { padding:10px 20px; cursor:pointer; color:var(--text-secondary); border-bottom:2px solid transparent; transition:all 0.2s; font-size:13px; }
+    .ml-tab:hover { color:var(--text-primary); }
+    .ml-tab.active { color:var(--accent-blue); border-bottom-color:var(--accent-blue); font-weight:600; }
+    .ml-panel { display:none; }
+    .ml-panel.active { display:block; }
+    .form-row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; align-items:flex-end; }
+    .form-group { display:flex; flex-direction:column; gap:4px; }
+    .form-group label { font-size:12px; color:var(--text-secondary); font-weight:500; }
+    .form-group input,.form-group select { padding:7px 10px; font-size:13px; }
+    .baseline-result { margin-top:12px; padding:12px; background:var(--bg-secondary); border-radius:6px; font-size:13px; }
+    .baseline-result .label { color:var(--text-secondary); }
+    .baseline-result .value { color:var(--accent-green); font-weight:600; }
+    .action-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#129302; ML Anomaly Detection</h2>
+          <div class="subtitle">Machine learning-based traffic analysis and anomaly detection</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid" id="statsCards">
+        <div class="stat-card stat-info"><div class="stat-label">Saved Models</div><div class="stat-value" id="modelsCount">-</div><div class="stat-sub">Trained ML models</div></div>
+        <div class="stat-card stat-success"><div class="stat-label">Active Rules</div><div class="stat-value" id="rulesCount">-</div><div class="stat-sub">Threshold detection rules</div></div>
+        <div class="stat-card stat-warning"><div class="stat-label">Last Baseline</div><div class="stat-value" id="lastBaseline">-</div><div class="stat-sub">Traffic baseline build time</div></div>
+      </div>
+
+      <div class="ml-tabs">
+        <span class="ml-tab active" data-panel="baseline">Traffic Baseline</span>
+        <span class="ml-tab" data-panel="rules">Threshold Rules</span>
+        <span class="ml-tab" data-panel="models">Models</span>
+      </div>
+
+      <div class="ml-panel active" id="panel-baseline">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Traffic Baseline</div>
+          </div>
+          <div class="action-bar" style="padding:16px">
+            <button class="btn btn-primary" id="buildBaselineBtn">Build Baseline</button>
+            <button class="btn btn-warning" id="detectAnomaliesBtn">Detect Anomalies</button>
+          </div>
+          <div id="baselineResult" class="baseline-result" style="display:none"></div>
+          <div class="data-table-wrapper" style="margin-top:0">
+            <table class="data-table">
+              <thead><tr><th>Anomaly Type</th><th>Severity</th><th>Description</th><th>Score</th></tr></thead>
+              <tbody id="anomaliesBody"><tr><td colspan="4">Build a baseline and run detection to see anomalies.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-panel" id="panel-rules">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header">
+            <div class="card-title">Create Threshold Rule</div>
+          </div>
+          <div style="padding:16px">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Rule Name</label>
+                <input type="text" id="ruleName" placeholder="e.g. High Packet Rate" style="width:200px">
+              </div>
+              <div class="form-group">
+                <label>Field</label>
+                <input type="text" id="ruleField" placeholder="e.g. packet_count" style="width:160px">
+              </div>
+              <div class="form-group">
+                <label>Operator</label>
+                <select id="ruleOperator" style="width:90px">
+                  <option value="gt">&gt;</option>
+                  <option value="lt">&lt;</option>
+                  <option value="gte">&ge;</option>
+                  <option value="lte">&le;</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Value</label>
+                <input type="number" id="ruleValue" placeholder="100" style="width:100px" step="any">
+              </div>
+              <div class="form-group">
+                <label>Window (s)</label>
+                <input type="number" id="ruleWindow" placeholder="60" style="width:80px">
+              </div>
+              <div class="form-group">
+                <label>Cooldown (s)</label>
+                <input type="number" id="ruleCooldown" placeholder="300" style="width:80px">
+              </div>
+              <div class="form-group">
+                <button class="btn btn-primary" id="createRuleBtn" style="margin-top:16px">Create Rule</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Active Threshold Rules</div>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Field</th><th>Operator</th><th>Value</th><th>Window (s)</th><th>Cooldown (s)</th><th>Created</th><th></th></tr></thead>
+              <tbody id="rulesBody"><tr><td colspan="8">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-panel" id="panel-models">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Saved ML Models</div>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Type</th><th>Created</th><th>Status</th><th></th></tr></thead>
+              <tbody id="modelsBody"><tr><td colspan="5">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tab switching
+      document.querySelectorAll('.ml-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.ml-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.ml-panel').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+        });
+      });
+
+      function formatDate(d) {
+        if (!d) return '-';
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Stats cards
+      async function loadStats() {
+        try {
+          const [models, rules] = await Promise.all([
+            apiFetch('/ml/models').catch(() => []),
+            apiFetch('/ml/threshold-rules').catch(() => [])
+          ]);
+          document.getElementById('modelsCount').textContent = Array.isArray(models) ? models.length : 0;
+          document.getElementById('rulesCount').textContent = Array.isArray(rules) ? rules.length : 0;
+        } catch (e) {}
+      }
+
+      // --- Traffic Baseline ---
+      document.getElementById('buildBaselineBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('buildBaselineBtn');
+        const resultDiv = document.getElementById('baselineResult');
+        btn.disabled = true;
+        btn.textContent = 'Building...';
+        try {
+          const data = await apiFetch('/ml/traffic-baseline', { method: 'POST' });
+          resultDiv.style.display = 'block';
+          resultDiv.innerHTML = `
+            <div style="display:flex;gap:24px;flex-wrap:wrap">
+              <div><span class="label">Records:</span> <span class="value">${data.recordCount ?? data.records ?? '-'}</span></div>
+              <div><span class="label">Timestamp:</span> <span class="value">${formatDate(data.timestamp ?? data.createdAt)}</span></div>
+              <div><span class="label">Status:</span> <span class="value">${data.status ?? 'Success'}</span></div>
+            </div>`;
+          document.getElementById('lastBaseline').textContent = formatDate(data.timestamp ?? data.createdAt);
+          showToast('Baseline built successfully');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Build Baseline';
+      });
+
+      document.getElementById('detectAnomaliesBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('detectAnomaliesBtn');
+        const tbody = document.getElementById('anomaliesBody');
+        btn.disabled = true;
+        btn.textContent = 'Detecting...';
+        try {
+          const data = await apiFetch('/ml/detect-traffic-anomalies', { method: 'POST' });
+          const anomalies = data.anomalies ?? data.results ?? (Array.isArray(data) ? data : []);
+          if (anomalies.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">No anomalies detected.</td></tr>';
+          } else {
+            tbody.innerHTML = anomalies.map(a => `<tr>
+              <td>${a.anomalyType || a.type || '-'}</td>
+              <td>${a.severity || '-'}</td>
+              <td>${a.description || a.desc || '-'}</td>
+              <td>${a.score != null ? Number(a.score).toFixed(4) : '-'}</td>
+            </tr>`).join('');
+          }
+          showToast(`Detection complete: ${anomalies.length} anomaly(ies) found`);
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="4">Detection failed. Build a baseline first.</td></tr>';
+          showToast(err.message, 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Detect Anomalies';
+      });
+
+      // --- Threshold Rules ---
+      async function loadRules() {
+        const tbody = document.getElementById('rulesBody');
+        try {
+          const rules = await apiFetch('/ml/threshold-rules');
+          if (!rules || rules.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8">No rules defined.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = rules.map(r => `<tr>
+            <td>${r.name || '-'}</td>
+            <td>${r.field || '-'}</td>
+            <td>${r.operator || '-'}</td>
+            <td>${r.value != null ? r.value : '-'}</td>
+            <td>${r.windowSeconds ?? r.window ?? '-'}</td>
+            <td>${r.cooldownSeconds ?? r.cooldown ?? '-'}</td>
+            <td>${formatDate(r.createdAt)}</td>
+            <td><button class="btn btn-danger btn-sm" data-id="${r.id || r._id}" data-name="${r.name}">Delete</button></td>
+          </tr>`).join('');
+          tbody.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.dataset.id;
+              const name = btn.dataset.name;
+              if (!confirm(`Delete rule "${name}"?`)) return;
+              try {
+                await apiFetch(`/ml/threshold-rule?id=${id}`, { method: 'DELETE' });
+                showToast('Rule deleted');
+                loadRules();
+                loadStats();
+              } catch (err) {
+                showToast(err.message, 'error');
+              }
+            });
+          });
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="8">Failed to load rules.</td></tr>';
+        }
+      }
+
+      document.getElementById('createRuleBtn').addEventListener('click', async () => {
+        const name = document.getElementById('ruleName').value.trim();
+        const field = document.getElementById('ruleField').value.trim();
+        const operator = document.getElementById('ruleOperator').value;
+        const value = parseFloat(document.getElementById('ruleValue').value);
+        const window = parseInt(document.getElementById('ruleWindow').value);
+        const cooldown = parseInt(document.getElementById('ruleCooldown').value);
+
+        if (!name || !field || isNaN(value) || isNaN(window) || isNaN(cooldown)) {
+          showToast('Please fill all fields', 'error');
+          return;
+        }
+
+        try {
+          await apiFetch('/ml/threshold-rule', {
+            method: 'POST',
+            body: JSON.stringify({ name, field, operator, value, windowSeconds: window, cooldownSeconds: cooldown })
+          });
+          showToast('Rule created');
+          document.getElementById('ruleName').value = '';
+          document.getElementById('ruleField').value = '';
+          document.getElementById('ruleValue').value = '';
+          document.getElementById('ruleWindow').value = '';
+          document.getElementById('ruleCooldown').value = '';
+          loadRules();
+          loadStats();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      // --- Models ---
+      async function loadModels() {
+        const tbody = document.getElementById('modelsBody');
+        try {
+          const models = await apiFetch('/ml/models');
+          if (!models || models.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No models saved.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = models.map(m => `<tr>
+            <td>${m.name || m.modelName || '-'}</td>
+            <td>${m.type || m.modelType || '-'}</td>
+            <td>${formatDate(m.createdAt || m.created)}</td>
+            <td>${m.status || 'Ready'}</td>
+            <td><button class="btn btn-danger btn-sm" data-name="${m.name || m.modelName}">Delete</button></td>
+          </tr>`).join('');
+          tbody.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const name = btn.dataset.name;
+              if (!confirm(`Delete model "${name}"?`)) return;
+              try {
+                await apiFetch(`/ml/models/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                showToast('Model deleted');
+                loadModels();
+                loadStats();
+              } catch (err) {
+                showToast(err.message, 'error');
+              }
+            });
+          });
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="5">Failed to load models.</td></tr>';
+        }
+      }
+
+      // Initialize
+      loadStats();
+      loadRules();
+      loadModels();
+    });
+  </script>
+</body>
+</html>

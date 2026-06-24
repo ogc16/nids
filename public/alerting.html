@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDS - Alerting Configuration</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const API = '/api/alerting';
+
+      let config = {
+        email: { enabled: false, smtp_host: '', smtp_port: 587, smtp_user: '', smtp_pass: '', from_address: '', test_recipient: '' },
+        slack: { enabled: false, webhook_url: '' },
+        webhook: { enabled: false, url: '', method: 'POST', headers: [] },
+        rules: []
+      };
+
+      const tabs = document.querySelectorAll('.alerting-tab');
+      const panels = document.querySelectorAll('.tab-panel');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          panels.forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.tab).classList.add('active');
+        });
+      });
+
+      function updateStatusIndicators() {
+        document.querySelectorAll('.status-indicator').forEach(el => {
+          const channel = el.dataset.channel;
+          const enabled = config[channel] && config[channel].enabled;
+          el.className = `status-indicator ${enabled ? 'status-active' : 'status-inactive'}`;
+          el.title = enabled ? 'Active' : 'Inactive';
+          el.innerHTML = enabled ? '&#9679; Active' : '&#9679; Inactive';
+        });
+      }
+
+      function populateForm(formId, data) {
+        const form = document.getElementById(formId);
+        if (!form) return;
+        const toggle = form.querySelector('.toggle-input');
+        if (toggle) toggle.checked = data.enabled;
+        form.querySelectorAll('input, select, textarea').forEach(el => {
+          if (el.type === 'checkbox') return;
+          const key = el.dataset.key || el.name;
+          if (key && data[key] !== undefined) {
+            if (el.tagName === 'TEXTAREA' && Array.isArray(data[key])) {
+              el.value = data[key].map(h => `${h.key || h.name}: ${h.value}`).join('\n');
+            } else {
+              el.value = data[key];
+            }
+          }
+        });
+        const toggleLabel = form.querySelector('.toggle-label');
+        if (toggleLabel) toggleLabel.textContent = data.enabled ? 'Enabled' : 'Disabled';
+      }
+
+      function collectForm(formId) {
+        const form = document.getElementById(formId);
+        const toggle = form.querySelector('.toggle-input');
+        const data = { enabled: toggle ? toggle.checked : false };
+        form.querySelectorAll('input, select, textarea').forEach(el => {
+          if (el.type === 'checkbox') return;
+          const key = el.dataset.key || el.name;
+          if (key) {
+            if (el.tagName === 'TEXTAREA') {
+              data[key] = el.value.split('\n').filter(l => l.trim()).map(l => {
+                const sep = l.includes(':') ? ':' : '=';
+                const idx = l.indexOf(sep);
+                return { key: l.slice(0, idx).trim(), name: l.slice(0, idx).trim(), value: l.slice(idx + 1).trim() };
+              });
+            } else {
+              data[key] = el.value;
+            }
+          }
+        });
+        const toggleLabel = form.querySelector('.toggle-label');
+        if (toggleLabel) toggleLabel.textContent = data.enabled ? 'Enabled' : 'Disabled';
+        return data;
+      }
+
+      async function loadConfig() {
+        try {
+          config = await apiFetch('/alerting/config');
+          populateForm('email-form', config.email);
+          populateForm('slack-form', config.slack);
+          populateForm('webhook-form', config.webhook);
+          renderRules();
+          updateStatusIndicators();
+        } catch (err) {
+          showToast('Failed to load alerting config: ' + err.message, 'error');
+        }
+      }
+
+      async function saveConfig() {
+        config.email = { ...config.email, ...collectForm('email-form') };
+        config.slack = { ...config.slack, ...collectForm('slack-form') };
+        config.webhook = { ...config.webhook, ...collectForm('webhook-form') };
+        try {
+          await apiFetch('/alerting/config', { method: 'PUT', body: JSON.stringify(config) });
+          showToast('Alerting configuration saved');
+          updateStatusIndicators();
+        } catch (err) {
+          showToast('Failed to save: ' + err.message, 'error');
+        }
+      }
+
+      async function testChannel(channel) {
+        channel = channel || this.dataset.channel;
+        let payload = {};
+        if (channel === 'email') {
+          payload = { channel: 'email', ...collectForm('email-form') };
+        } else if (channel === 'slack') {
+          payload = { channel: 'slack', ...collectForm('slack-form') };
+        } else if (channel === 'webhook') {
+          payload = { channel: 'webhook', ...collectForm('webhook-form') };
+        }
+        try {
+          showLoading('Sending test notification...');
+          await apiFetch('/alerting/test', { method: 'POST', body: JSON.stringify(payload) });
+          hideLoading();
+          showToast('Test notification sent successfully');
+        } catch (err) {
+          hideLoading();
+          showToast('Test failed: ' + err.message, 'error');
+        }
+      }
+
+      function renderRules() {
+        const tbody = document.getElementById('rules-tbody');
+        if (!tbody) return;
+        const rules = config.rules || [];
+        if (rules.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:24px">No alert rules configured. Add one below.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rules.map((rule, i) => `
+          <tr>
+            <td>${escHtml(rule.name)}</td>
+            <td><span class="tag tag-${rule.event_type === 'critical_severity' ? 'critical' : 'medium'}">${escHtml(rule.event_type)}</span></td>
+            <td><span class="tag tag-active">${escHtml(rule.action_type)}</span></td>
+            <td><span class="tag ${rule.enabled ? 'tag-active' : 'tag-deprecated'}">${rule.enabled ? 'Enabled' : 'Disabled'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-info" onclick="editRule(${i})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteRule(${i})">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      window.editRule = function(index) {
+        const rule = config.rules[index];
+        if (!rule) return;
+        document.getElementById('rule-name').value = rule.name;
+        document.getElementById('rule-event-type').value = rule.event_type;
+        document.getElementById('rule-action-type').value = rule.action_type;
+        document.getElementById('rule-conditions').value = rule.conditions || '';
+        document.getElementById('rule-enabled').checked = rule.enabled;
+        document.getElementById('rule-form').dataset.editIndex = index;
+        document.getElementById('rule-form-title').textContent = 'Edit Rule';
+        document.getElementById('rule-cancel').style.display = 'inline-flex';
+      };
+
+      window.deleteRule = function(index) {
+        if (!confirm('Delete this rule?')) return;
+        config.rules.splice(index, 1);
+        renderRules();
+        saveConfig();
+      };
+
+      function escHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      document.getElementById('rule-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const editIndex = form.dataset.editIndex;
+        const rule = {
+          name: document.getElementById('rule-name').value,
+          event_type: document.getElementById('rule-event-type').value,
+          action_type: document.getElementById('rule-action-type').value,
+          conditions: document.getElementById('rule-conditions').value,
+          enabled: document.getElementById('rule-enabled').checked
+        };
+        if (editIndex !== undefined && editIndex !== '') {
+          config.rules[parseInt(editIndex)] = rule;
+          delete form.dataset.editIndex;
+          document.getElementById('rule-form-title').textContent = 'Add Rule';
+          document.getElementById('rule-cancel').style.display = 'none';
+        } else {
+          config.rules.push(rule);
+        }
+        form.reset();
+        document.getElementById('rule-enabled').checked = true;
+        renderRules();
+        saveConfig();
+        showToast('Rule saved');
+      });
+
+      document.getElementById('rule-cancel')?.addEventListener('click', () => {
+        const form = document.getElementById('rule-form');
+        delete form.dataset.editIndex;
+        document.getElementById('rule-form-title').textContent = 'Add Rule';
+        document.getElementById('rule-cancel').style.display = 'none';
+        form.reset();
+        document.getElementById('rule-enabled').checked = true;
+      });
+
+      document.querySelectorAll('.toggle-input').forEach(toggle => {
+        toggle.addEventListener('change', function() {
+          const label = this.closest('.toggle-group')?.querySelector('.toggle-label');
+          if (label) label.textContent = this.checked ? 'Enabled' : 'Disabled';
+        });
+      });
+
+      document.querySelectorAll('.btn-test').forEach(btn => {
+        btn.addEventListener('click', testChannel);
+      });
+
+      document.getElementById('save-all')?.addEventListener('click', saveConfig);
+      document.getElementById('save-email')?.addEventListener('click', saveConfig);
+      document.getElementById('save-slack')?.addEventListener('click', saveConfig);
+      document.getElementById('save-webhook')?.addEventListener('click', saveConfig);
+
+      loadConfig();
+    });
+  </script>
+  <style>
+    .alerting-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .alerting-tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .alerting-tab:hover { color: var(--text-primary); }
+    .alerting-tab.active {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+      font-weight: 600;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .alerting-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-active {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+    .status-inactive {
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-secondary);
+    }
+    .toggle-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-hover);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: var(--text-secondary);
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(63, 185, 80, 0.3);
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+      background: var(--accent-green);
+    }
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .channel-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .channel-section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .headers-textarea {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      min-height: 80px;
+    }
+    .headers-hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    .add-rule-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .add-rule-section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 768px) {
+      .alerting-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>Alerting Configuration</h2>
+          <div class="subtitle">Configure notification channels and alert rules</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="save-all">Save All Settings</button>
+        </div>
+      </div>
+
+      <div class="alerting-grid">
+        <div class="stat-card stat-success"><div class="stat-label">Email</div><div class="stat-value" style="font-size:18px"><span class="status-indicator" data-channel="email">&#9679; Loading...</span></div><div class="stat-sub">SMTP notifications</div></div>
+        <div class="stat-card stat-info"><div class="stat-label">Slack</div><div class="stat-value" style="font-size:18px"><span class="status-indicator" data-channel="slack">&#9679; Loading...</span></div><div class="stat-sub">Slack webhook</div></div>
+        <div class="stat-card" style="border-left:3px solid var(--accent-purple)"><div class="stat-label">Webhook</div><div class="stat-value" style="font-size:18px"><span class="status-indicator" data-channel="webhook">&#9679; Loading...</span></div><div class="stat-sub">Custom HTTP endpoint</div></div>
+        <div class="stat-card" style="border-left:3px solid var(--accent-cyan)"><div class="stat-label">Alert Rules</div><div class="stat-value" style="font-size:18px" id="rule-count">0</div><div class="stat-sub">Configured rules</div></div>
+      </div>
+
+      <div class="alerting-tabs">
+        <div class="alerting-tab active" data-tab="panel-email">Email Settings</div>
+        <div class="alerting-tab" data-tab="panel-slack">Slack Settings</div>
+        <div class="alerting-tab" data-tab="panel-webhook">Webhook Settings</div>
+        <div class="alerting-tab" data-tab="panel-rules">Alert Rules</div>
+      </div>
+
+      <!-- Email Panel -->
+      <div class="tab-panel active" id="panel-email">
+        <div class="channel-section">
+          <div class="toggle-group">
+            <label class="toggle-switch">
+              <input type="checkbox" class="toggle-input" id="email-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Disabled</span>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email-smtp-host">SMTP Host</label>
+              <input type="text" class="form-control" id="email-smtp-host" data-key="smtp_host" placeholder="smtp.example.com">
+            </div>
+            <div class="form-group">
+              <label for="email-smtp-port">SMTP Port</label>
+              <input type="number" class="form-control" id="email-smtp-port" data-key="smtp_port" placeholder="587">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email-smtp-user">SMTP User</label>
+              <input type="text" class="form-control" id="email-smtp-user" data-key="smtp_user" placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+              <label for="email-smtp-pass">SMTP Password</label>
+              <input type="password" class="form-control" id="email-smtp-pass" data-key="smtp_pass" placeholder="********">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email-from">From Address</label>
+              <input type="email" class="form-control" id="email-from" data-key="from_address" placeholder="nids@example.com">
+            </div>
+            <div class="form-group">
+              <label for="email-test-recipient">Test Recipient</label>
+              <input type="email" class="form-control" id="email-test-recipient" data-key="test_recipient" placeholder="admin@example.com">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-email">Save</button>
+            <button class="btn btn-info btn-test" data-channel="email">Test</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slack Panel -->
+      <div class="tab-panel" id="panel-slack">
+        <div class="channel-section">
+          <div class="toggle-group">
+            <label class="toggle-switch">
+              <input type="checkbox" class="toggle-input" id="slack-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Disabled</span>
+          </div>
+          <div class="form-group">
+            <label for="slack-webhook-url">Webhook URL</label>
+            <input type="url" class="form-control" id="slack-webhook-url" data-key="webhook_url" placeholder="https://hooks.slack.com/services/...">
+            <div class="hint">Enter the Slack Incoming Webhook URL from your Slack workspace.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-slack">Save</button>
+            <button class="btn btn-info btn-test" data-channel="slack">Test</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Webhook Panel -->
+      <div class="tab-panel" id="panel-webhook">
+        <div class="channel-section">
+          <div class="toggle-group">
+            <label class="toggle-switch">
+              <input type="checkbox" class="toggle-input" id="webhook-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Disabled</span>
+          </div>
+          <div class="form-group">
+            <label for="webhook-url">URL</label>
+            <input type="url" class="form-control" id="webhook-url" data-key="url" placeholder="https://example.com/webhook">
+          </div>
+          <div class="form-group">
+            <label for="webhook-method">Method</label>
+            <select class="form-control" id="webhook-method" data-key="method">
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="webhook-headers">Custom Headers <span style="color:var(--text-secondary);font-weight:400">(one per line: key: value)</span></label>
+            <textarea class="form-control headers-textarea" id="webhook-headers" data-key="headers" placeholder="Authorization: Bearer token&#10;X-Custom-Header: value"></textarea>
+            <div class="headers-hint">Enter one header per line in the format <code>Key: Value</code>.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-webhook">Save</button>
+            <button class="btn btn-info btn-test" data-channel="webhook">Test</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rules Panel -->
+      <div class="tab-panel" id="panel-rules">
+        <div class="channel-section">
+          <h3>Configured Rules</h3>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Rule Name</th>
+                  <th>Event Type</th>
+                  <th>Action Type</th>
+                  <th>Status</th>
+                  <th style="width:140px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rules-tbody">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:24px">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="add-rule-section">
+          <h3 id="rule-form-title">Add Rule</h3>
+          <form id="rule-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="rule-name">Rule Name</label>
+                <input type="text" class="form-control" id="rule-name" required placeholder="e.g. Critical Incident Alert">
+              </div>
+              <div class="form-group">
+                <label for="rule-event-type">Event Type</label>
+                <select class="form-control" id="rule-event-type" required>
+                  <option value="">Select event type...</option>
+                  <option value="incident.created">Incident Created</option>
+                  <option value="critical_severity">Critical Severity</option>
+                  <option value="high_severity">High Severity</option>
+                  <option value="medium_severity">Medium Severity</option>
+                  <option value="rule_match">Rule Match</option>
+                  <option value="anomaly_detected">Anomaly Detected</option>
+                  <option value="asset_offline">Asset Offline</option>
+                  <option value="threat_intel_match">Threat Intel Match</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="rule-action-type">Action Type</label>
+                <select class="form-control" id="rule-action-type" required>
+                  <option value="">Select action...</option>
+                  <option value="email">Email</option>
+                  <option value="slack">Slack</option>
+                  <option value="webhook">Webhook</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Enabled</label>
+                <div style="display:flex;align-items:center;gap:10px;padding-top:6px">
+                  <label class="toggle-switch">
+                    <input type="checkbox" class="toggle-input" id="rule-enabled" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="toggle-label">Enabled</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="rule-conditions">Conditions <span style="color:var(--text-secondary);font-weight:400">(optional, JSON)</span></label>
+              <input type="text" class="form-control" id="rule-conditions" placeholder='{"severity": "critical"}'>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary">Add Rule</button>
+              <button type="button" class="btn btn-secondary" id="rule-cancel" style="display:none">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

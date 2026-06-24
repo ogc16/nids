@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDS - Vulnerability Scanner</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/app.js" defer></script>
+  <script src="/vulnscan.js" defer></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item active"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>Vulnerability Scanner</h2>
+          <div class="subtitle">CVE database, asset assessment, and scan management</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" onclick="refreshCveTable()">&#8635; Refresh CVEs</button>
+          <button class="btn btn-info" onclick="exportReport()">&#128196; Export Report</button>
+        </div>
+      </div>
+
+      <div class="dashboard-grid" id="vulnSummaryCards">
+        <div class="stat-card stat-critical"><div class="stat-label">Total CVEs in DB</div><div class="stat-value" id="totalCves">-</div><div class="stat-sub">Aggregated vulnerabilities</div></div>
+        <div class="stat-card stat-critical"><div class="stat-label">Critical</div><div class="stat-value" id="criticalCount">-</div><div class="stat-sub">CVSS 9.0 &#8211; 10.0</div></div>
+        <div class="stat-card stat-warning"><div class="stat-label">High</div><div class="stat-value" id="highCount">-</div><div class="stat-sub">CVSS 7.0 &#8211; 8.9</div></div>
+        <div class="stat-card stat-info"><div class="stat-label">Medium</div><div class="stat-value" id="mediumCount">-</div><div class="stat-sub">CVSS 4.0 &#8211; 6.9</div></div>
+      </div>
+
+      <div class="groups-container">
+        <div class="group-section">
+          <div class="group-header">&#128220; CVE Database Browser</div>
+          <div style="padding:16px">
+            <div class="filters-bar">
+              <input type="text" class="filter-input" id="cveSearch" placeholder="Search by CVE ID, keyword, or software..." oninput="debounceSearch()">
+              <select class="filter-select" id="severityFilter" onchange="refreshCveTable()">
+                <option value="">All Severities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div class="data-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>CVE ID</th>
+                    <th>Severity</th>
+                    <th>CVSS Score</th>
+                    <th>Description</th>
+                    <th>Affected Software</th>
+                    <th>Remediation</th>
+                  </tr>
+                </thead>
+                <tbody id="cveTableBody">
+                  <tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:24px">Loading CVE data...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="group-section">
+          <div class="group-header">&#128188; Asset Assessment</div>
+          <div style="padding:16px">
+            <div class="filters-bar">
+              <select class="filter-select" id="assetSelect" style="min-width:240px">
+                <option value="">Select an asset...</option>
+              </select>
+              <button class="btn btn-primary" onclick="runAssessment()">&#9654; Run Assessment</button>
+            </div>
+            <div id="assessmentResults" style="display:none">
+              <div class="dashboard-grid" style="margin-top:8px;margin-bottom:16px">
+                <div class="stat-card"><div class="stat-label">Risk Score</div><div class="stat-value" id="riskScore">-</div><div class="stat-sub">Overall vulnerability risk</div></div>
+                <div class="stat-card stat-critical"><div class="stat-label">Critical</div><div class="stat-value" id="assessCritical">0</div><div class="stat-sub">Vulnerabilities found</div></div>
+                <div class="stat-card stat-warning"><div class="stat-label">High</div><div class="stat-value" id="assessHigh">0</div><div class="stat-sub">Vulnerabilities found</div></div>
+                <div class="stat-card stat-info"><div class="stat-label">Medium</div><div class="stat-value" id="assessMedium">0</div><div class="stat-sub">Vulnerabilities found</div></div>
+                <div class="stat-card stat-success"><div class="stat-label">Low</div><div class="stat-value" id="assessLow">0</div><div class="stat-sub">Vulnerabilities found</div></div>
+              </div>
+              <div class="data-table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>CVE ID</th>
+                      <th>Severity</th>
+                      <th>CVSS Score</th>
+                      <th>Description</th>
+                      <th>Remediation</th>
+                    </tr>
+                  </thead>
+                  <tbody id="assessmentVulnBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="assessmentEmpty" class="empty-state">
+              <div class="empty-icon">&#128188;</div>
+              <h3>No Assessment Run</h3>
+              <p>Select an asset and click "Run Assessment" to scan for vulnerabilities.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="group-section">
+          <div class="group-header">&#128269; Scan Management</div>
+          <div style="padding:16px">
+            <div class="filters-bar">
+              <input type="text" class="filter-input" id="scanTargets" placeholder="Target IPs/hosts (comma-separated, e.g. 10.0.0.1,10.0.0.2)" style="flex:1;min-width:300px">
+              <button class="btn btn-primary" id="startScanBtn" onclick="startScan()">&#9654; Start Scan</button>
+            </div>
+            <div class="data-table-wrapper" style="margin-top:12px">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Scan ID</th>
+                    <th>Targets</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Vulns Found</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="scanTableBody">
+                  <tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:24px">No scans yet</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="scanResults" style="display:none;margin-top:16px">
+              <div class="group-header">Scan Results</div>
+              <div id="scanResultsBody" style="padding:16px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

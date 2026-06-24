@@ -4,6 +4,28 @@ const BASE = 'http://localhost:3000/api';
 let passed = 0;
 let failed = 0;
 let token = null;
+let csrfToken = null;
+let cookieJar = [];
+
+function parseCookies(setCookieHeaders) {
+  if (!setCookieHeaders) return;
+  const arr = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders];
+  for (const c of arr) {
+    const parts = c.split(';')[0];
+    const [name, ...valParts] = parts.split('=');
+    const value = valParts.join('=');
+    // Update cookie jar
+    const idx = cookieJar.findIndex(ck => ck.startsWith(name + '='));
+    const entry = `${name}=${value}`;
+    if (idx >= 0) cookieJar[idx] = entry;
+    else cookieJar.push(entry);
+    if (name === 'csrf-token') csrfToken = value;
+  }
+}
+
+function getCookieHeader() {
+  return cookieJar.join('; ');
+}
 
 async function request(method, path, body, useToken = true) {
   return new Promise((resolve, reject) => {
@@ -15,13 +37,17 @@ async function request(method, path, body, useToken = true) {
       headers: { 'Content-Type': 'application/json' }
     };
     if (useToken && token) opts.headers['Authorization'] = `Bearer ${token}`;
+    if (useToken && csrfToken) opts.headers['X-CSRF-Token'] = csrfToken;
+    const cookieHeader = getCookieHeader();
+    if (cookieHeader) opts.headers['Cookie'] = cookieHeader;
 
     const req = http.request(opts, res => {
+      parseCookies(res.headers['set-cookie']);
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
+        try { resolve({ status: res.statusCode, body: JSON.parse(data), headers: res.headers }); }
+        catch { resolve({ status: res.statusCode, body: data, headers: res.headers }); }
       });
     });
     req.on('error', reject);
@@ -32,18 +58,35 @@ async function request(method, path, body, useToken = true) {
 
 function assert(label, condition) {
   if (condition) { passed++; console.log(`  PASS: ${label}`); }
-  else { failed++; console.log(`  FAIL: ${label}`); }
+  else { failed++; console.log(`  FAIL: ${label} ${condition === false ? '(false)' : (condition === undefined ? '(undefined)' : '')}`); }
 }
 
 async function run() {
   console.log('\n=== NIDS Enterprise Test Suite ===\n');
 
-  // Authenticate
+  // Authenticate - handle mustChangePwd flow
   console.log('0. Authentication');
   const auth = await request('POST', '/auth/login', { username: 'admin', password: 'admin' }, false);
   assert('POST /auth/login returns 200', auth.status === 200);
-  assert('login returns token', auth.body && auth.body.token);
-  token = auth.body.token;
+
+  if (auth.body.mustChangePwd) {
+    // First login with new admin account - must change password
+    token = auth.body.tempToken;
+    const changePwd = await request('POST', '/auth/change-password', { currentPassword: 'admin', newPassword: 'Test@Admin!2026Secure' }, true);
+    assert('POST /auth/change-password returns 200', changePwd.status === 200);
+
+    // Login again with new password
+    const auth2 = await request('POST', '/auth/login', { username: 'admin', password: 'Test@Admin!2026Secure' }, false);
+    assert('POST /auth/login after password change returns 200', auth2.status === 200);
+    assert('login returns token', auth2.body && auth2.body.token);
+    assert('login returns csrfToken', auth2.body && auth2.body.csrfToken);
+    token = auth2.body.token;
+    csrfToken = auth2.body.csrfToken;
+  } else {
+    assert('login returns token', auth.body && auth.body.token);
+    token = auth.body.token;
+    if (auth.body.csrfToken) csrfToken = auth.body.csrfToken;
+  }
   console.log(`  Token: ${token.substring(0, 20)}...`);
 
   const me = await request('GET', '/auth/me');
@@ -153,10 +196,15 @@ async function run() {
 
   // Test auth failures
   console.log('\n11. Auth enforcement');
+  const savedCsrf = csrfToken;
+  const savedCookies = [...cookieJar];
+  cookieJar = [];
+  csrfToken = null;
   const noAuth = await request('POST', '/incidents', { title: 'should fail', severity: 'Low', status: 'New', attackType: 'Test', sourceIp: '0.0.0.0' }, false);
   assert('POST without token returns 401', noAuth.status === 401);
+  cookieJar = savedCookies;
+  csrfToken = savedCsrf;
 
-  const viewerToken = await request('POST', '/auth/login', { username: 'admin', password: 'admin' }, false);
   // Test CSV export
   console.log('\n12. CSV export');
   const csv = await request('GET', '/incidents/export');
