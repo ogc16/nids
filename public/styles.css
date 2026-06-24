@@ -885,3 +885,99 @@ textarea.form-control {
 }
 .cookie-banner p { margin: 0; }
 .cookie-banner .btn { flex-shrink: 0; }
+
+/* PCAP Analysis styles */
+.file-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.file-drop-zone:hover, .file-drop-zone.dragover {
+  border-color: var(--accent-blue);
+  background: rgba(88, 166, 255, 0.05);
+}
+.file-drop-zone .drop-icon { font-size: 40px; margin-bottom: 12px; }
+.file-drop-zone .drop-text { font-size: 14px; color: var(--text-secondary); }
+
+/* Protocol tree */
+.protocol-tree { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; padding: 8px; }
+.protocol-tree .tree-node { padding: 2px 0; }
+.protocol-tree .tree-node .proto-name { color: var(--accent-blue); }
+.protocol-tree .tree-node .proto-stats { color: var(--text-secondary); margin-left: 8px; }
+
+/* Wireshark filter input */
+.filter-input-monospace { font-family: 'Consolas', 'Courier New', monospace; }
+
+/* Analysis tabs */
+.analysis-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.analysis-tab:hover { color: var(--text-primary); }
+.analysis-tab.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* Packet hex dump */
+.hex-dump {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--text-secondary);
+}
+.hex-dump .hex-offset { color: var(--text-muted); margin-right: 12px; }
+.hex-dump .hex-bytes { color: var(--accent-blue); margin-right: 12px; }
+.hex-dump .hex-ascii { color: var(--accent-green); }
+
+/* Capture status indicator */
+.capture-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--accent-red);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--accent-red);
+  font-weight: 600;
+}
+.capture-active::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--accent-red);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Disabled button state */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

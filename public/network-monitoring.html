@@ -48,6 +48,11 @@
           <div class="nav-section-title">Infrastructure</div>
           <a href="/network-monitoring" class="nav-item active"><span class="icon">&#128200;</span> Network Monitoring</a>
           <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Packet Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
         </div>
         <div class="nav-section">
           <div class="nav-section-title">Reports</div>
@@ -72,6 +77,17 @@
           <h2>&#128200; Network Traffic Monitoring</h2>
           <div class="subtitle">Real-time network flows, protocol analysis &amp; threat detection</div>
         </div>
+        <div class="header-actions">
+          <span id="wiresharkFilterStatus" style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:4px"></span>
+          <button class="btn btn-info btn-sm" id="openInWiresharkBtn" title="Generate Wireshark filter from current selection">&#128220; Wireshark Filter</button>
+          <button class="btn btn-secondary btn-sm" id="exportTrafficCsv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="filters-bar" style="margin-bottom:16px">
+        <input type="text" class="filter-input" id="wiresharkFilter" placeholder="Wireshark display filter (e.g., ip.src==10.0.0.1, http, dns)" style="flex:1;min-width:300px;font-family:monospace">
+        <button class="btn btn-secondary btn-sm" id="applyWiresharkFilter">Apply Filter</button>
+        <button class="btn btn-secondary btn-sm" id="clearWiresharkFilter">Clear</button>
       </div>
 
       <div class="dashboard-grid" id="trafficStatCards">

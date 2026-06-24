@@ -16,7 +16,15 @@ A **Network Intrusion Detection System** SOC workspace — a full-stack security
 
 ### Infrastructure & Monitoring
 - **Network Assets** — Device inventory with risk levels, health status, and grouping
-- **Network Monitoring** — Real-time traffic flow viewer with protocol distribution charts, suspicious/blocked flow highlighting, and country-level detail
+- **Network Monitoring** — Real-time traffic flow viewer with protocol distribution charts, suspicious/blocked flow highlighting, country-level detail, and **Wireshark display filter** support
+- **PCAP Analysis** — Upload and analyze packet capture files via Wireshark/tshark: protocol hierarchy, endpoint statistics, conversations, packet-level browsing with display filters, pagination, and PCAP export
+- **Host Monitoring** — Real-time system health and network diagnostics: active TCP/UDP connections, listening ports with process details, bandwidth per interface, ARP table, DNS cache, routing table, subnet network scan
+
+### Patch Management
+- **Patch Status** — View installed Windows hotfixes with KB IDs, install dates, descriptions
+- **Windows Update Scan** — Scan for pending updates via Windows Update API
+- **Install Updates** — Trigger patch installation for specific KBs
+- **Audit Log** — Track all patch management activity with timestamps
 
 ### Reports
 - **Customer Report** — Client-ready filtered view showing only resolved incidents with CVSS scores, resolution times, and attack-type breakdowns
@@ -36,6 +44,8 @@ A **Network Intrusion Detection System** SOC workspace — a full-stack security
 | Styling  | Custom CSS (dark SOC theme) |
 | Data     | JSON file-based storage |
 | Testing  | Node.js HTTP test suite |
+| PCAP     | tshark (Wireshark CLI) 4.x |
+| Host OS  | Windows (PowerShell-based monitoring) |
 
 ## Project Structure
 
@@ -44,6 +54,11 @@ nids/
 ├── server.js                 # Express API server with CRUD + automations
 ├── package.json
 ├── test-api.js               # API test suite (36 tests)
+├── lib/                      # Backend modules
+│   ├── pcap.js               # tshark-based PCAP analysis & live capture
+│   ├── monitor.js            # PowerShell host monitoring (connections, ports, ARP, scan)
+│   ├── auth.js               # Authentication & cookie-based session
+│   └── config.js             # Server configuration
 ├── data/                     # JSON-backed data store
 │   ├── incidents.json
 │   ├── detection-rules.json
@@ -53,6 +68,7 @@ nids/
 │   ├── network-traffic.json
 │   ├── qa-tests.json
 │   └── automations-log.json
+├── data/pcap/                # Uploaded PCAP capture files
 └── public/                   # Static frontend
     ├── styles.css            # Dark SOC theme (1000+ lines)
     ├── app.js                # Shared utilities (apiFetch, toast, modal, etc.)
@@ -63,6 +79,8 @@ nids/
     ├── tasks.html + tasks.js
     ├── assets.html + assets.js
     ├── network-monitoring.html + network-monitoring.js
+    ├── pcap-analysis.html + pcap-analysis.js
+    ├── host-monitoring.html + host-monitoring.js
     ├── qa.html + qa.js
     ├── customer-report.html + customer-report.js
     ├── report-incident.html
@@ -88,14 +106,68 @@ nids/
 | GET | `/api/stats` | Aggregated dashboard stats |
 | GET | `/api/customer-report` | Resolved incidents with CVSS |
 | GET | `/api/network-traffic/stats` | Traffic flow summary stats |
+| GET | `/api/network-traffic` | Traffic flows with optional `?displayFilter=` |
 | GET | `/api/automations/log` | Automation event history |
 | POST | `/api/automations/trigger/severity-critical` | Fire critical alerts |
 | POST | `/api/automations/trigger/resolved-asset-update` | Link resolved incidents to assets |
 
+### PCAP Analysis
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/pcap/upload` | Upload a PCAP file |
+| GET | `/api/pcap/captures` | List all uploaded captures |
+| GET | `/api/pcap/captures/:id` | Get capture metadata |
+| DELETE | `/api/pcap/captures/:id` | Delete a capture |
+| GET | `/api/pcap/captures/:id/analysis/protocols` | Protocol hierarchy |
+| GET | `/api/pcap/captures/:id/analysis/endpoints` | Endpoint statistics |
+| GET | `/api/pcap/captures/:id/analysis/conversations` | Conversation statistics |
+| GET | `/api/pcap/captures/:id/analysis/packets` | Packet listing (paginated, filterable) |
+| GET | `/api/pcap/captures/:id/export` | Download raw PCAP file |
+| POST | `/api/pcap/validate-filter` | Validate a Wireshark display filter syntax |
+| GET | `/api/pcap/status` | tshark availability & config status |
+
+### Live Capture
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/capture/interfaces` | List available network interfaces |
+| POST | `/api/capture/start` | Start a live capture on an interface |
+| POST | `/api/capture/stop` | Stop the active capture |
+| GET | `/api/capture/active` | Check if a capture is running |
+
+### Host Monitoring
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/monitor/connections` | Active TCP/UDP connections with process info |
+| GET | `/api/monitor/ports` | Listening ports with process details |
+| GET | `/api/monitor/process/:pid` | Detailed process info (memory, threads, CPU) |
+| GET | `/api/monitor/interfaces` | Network interface cards |
+| GET | `/api/monitor/system` | System info (hostname, uptime, CPU, memory) |
+| GET | `/api/monitor/bandwidth` | Interface bandwidth statistics |
+| GET | `/api/monitor/arp` | ARP table |
+| GET | `/api/monitor/dns-cache` | DNS client cache |
+| GET | `/api/monitor/routing-table` | IP routing table |
+| POST | `/api/monitor/scan` | Subnet ping sweep scan |
+
+### Patch Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/patch/hotfixes` | List installed Windows hotfixes |
+| GET | `/api/patch/updates` | Scan for pending Windows updates |
+| POST | `/api/patch/install` | Install a specific update by KB ID |
+| GET | `/api/patch/log` | View patch audit log |
+
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | Login (returns JWT + sets HTTP-only cookie) |
+| POST | `/api/auth/logout` | Logout |
+
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+]
+- Node.js 18+
+- Wireshark/tshark 4.x (optional, for PCAP analysis)
+- Npcap (optional, for live packet capture on Windows)
 
 ### Install & Run
 ```bash
@@ -105,6 +177,10 @@ npm start
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+### Default Login
+- Username: `admin`
+- Password: `admin`
 
 ### Run Tests
 ```bash

@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const multer = require('multer');
 
 const config = require('./lib/config');
 const { authenticate, optionalAuth, authorize, ROLES, seedAdminUser, loginRoute, meRoute, listUsersRoute, createUserRoute, updateUserRoute, deleteUserRoute } = require('./lib/auth');
@@ -14,9 +15,21 @@ const { validate, schemas } = require('./lib/validate');
 const { audit, getAuditLog } = require('./lib/audit');
 const { errorHandler, notFoundHandler, AppError, ValidationError, NotFoundError } = require('./lib/errors');
 const { loadCerts } = require('./lib/tls');
+const pcap = require('./lib/pcap');
+const monitor = require('./lib/monitor');
 
 const app = express();
 const DATA_DIR = config.dataDir;
+
+const pcapUpload = multer({
+  dest: pcap.PCAP_DIR,
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.pcap', '.pcapng', '.cap'].includes(ext)) return cb(null, true);
+    cb(new Error('Only .pcap, .pcapng, .cap files allowed'));
+  }
+});
 
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -114,6 +127,28 @@ app.get('/api/network-traffic/stats', optionalAuth, (req, res) => {
   });
 });
 
+// ---- Network traffic list with Wireshark display filter support ----
+app.get('/api/network-traffic', optionalAuth, (req, res) => {
+  let data = readTable('network-traffic');
+  const filter = req.query.displayFilter || '';
+  if (filter) {
+    try {
+      data = data.filter(item => {
+        try {
+          const tokens = filter.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+          return evaluateTokens(tokens, item);
+        } catch { return true; }
+      });
+    } catch {}
+  }
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(config.maxPageSize, Math.max(1, parseInt(req.query.limit) || config.defaultPageSize));
+  const totalFiltered = data.length;
+  const offset = (page - 1) * limit;
+  const items = data.slice(offset, offset + limit);
+  res.json({ items, pagination: { page, limit, total: totalFiltered, totalFiltered, totalPages: Math.ceil(totalFiltered / limit) } });
+});
+
 // ---- Generic CRUD with Auth + Validation + Audit + Pagination ----
 const WRITABLE_TABLES = ['incidents', 'detection-rules', 'threat-intel', 'engineering-tasks', 'network-assets', 'qa-tests', 'playbooks', 'security-policies', 'security-standards'];
 const READONLY_TABLES = ['network-traffic'];
@@ -122,11 +157,15 @@ const ALL_TABLES = [...WRITABLE_TABLES, ...READONLY_TABLES];
 ALL_TABLES.forEach(table => {
   const route = `/api/${table}`;
 
-  // LIST with pagination
-  app.get(route, optionalAuth, (req, res) => {
-    const result = readTablePaginated(table, req.query);
-    res.json(result);
-  });
+  // LIST with pagination (custom handler for network-traffic with Wireshark filter support)
+  if (table === 'network-traffic') {
+    // Custom route is registered before this loop
+  } else {
+    app.get(route, optionalAuth, (req, res) => {
+      const result = readTablePaginated(table, req.query);
+      res.json(result);
+    });
+  }
 
   // CSV export
   app.get(`${route}/export`, authenticate, (req, res) => {
@@ -734,6 +773,322 @@ app.post('/api/network-traffic/simulate', authenticate, authorize('admin', 'anal
     });
   }
   res.status(201).json(flow);
+});
+
+// ---- PCAP Capture & Analysis ----
+pcap.ensurePcapDir();
+
+app.post('/api/pcap/upload', authenticate, authorize('admin', 'analyst'), (req, res, next) => {
+  pcapUpload.single('pcap')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    try {
+      const ext = path.extname(req.file.originalname);
+      const newName = `capture-${Date.now()}${ext}`;
+      const newPath = path.join(pcap.PCAP_DIR, newName);
+      fs.renameSync(req.file.path, newPath);
+      const stats = fs.statSync(newPath);
+      let meta = { packets: null, duration: null, protocols: [] };
+      if (pcap.isTsharkAvailable()) {
+        try {
+          const count = await pcap.tsharkRaw(['-r', newPath, '-T', 'fields', '-e', 'frame.number']);
+          meta.packets = count.split('\n').filter(l => l.trim()).length;
+          const phs = await pcap.tsharkRaw(['-r', newPath, '-z', 'io,phs']);
+          const protoMatch = phs.match(/([A-Z]+)\s+[\d.]+%/g);
+          if (protoMatch) meta.protocols = protoMatch.map(m => m.split(/\s+/)[0]);
+        } catch {}
+      }
+      const record = pcap.createCaptureRecord(newName, req.file.originalname, stats.size, meta);
+      audit('pcap_upload', req, { id: record.id, originalName: req.file.originalname, size: stats.size, packets: meta.packets });
+      res.status(201).json(record);
+    } catch (e) { next(e); }
+  });
+});
+
+app.get('/api/pcap/captures', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  const captures = pcap.readMeta().reverse();
+  res.json({ items: captures, total: captures.length });
+});
+
+app.get('/api/pcap/captures/:id', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const record = await pcap.getCaptureMetadata(req.params.id);
+    res.json(record);
+  } catch (e) { next(new NotFoundError(e.message)); }
+});
+
+app.delete('/api/pcap/captures/:id', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const { record, filePath } = await pcap.getPcapFile(req.params.id);
+    fs.unlinkSync(filePath);
+    const meta = pcap.readMeta();
+    pcap.writeMeta(meta.filter(m => m.id !== parseInt(req.params.id)));
+    audit('pcap_delete', req, { id: parseInt(req.params.id), originalName: record.originalName });
+    res.status(204).send();
+  } catch (e) { next(new NotFoundError(e.message)); }
+});
+
+app.get('/api/pcap/captures/:id/analysis/protocols', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const data = await pcap.getProtocolHierarchy(req.params.id);
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.get('/api/pcap/captures/:id/analysis/endpoints', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const type = req.query.type || 'ip';
+    const data = await pcap.getEndpoints(req.params.id, type);
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.get('/api/pcap/captures/:id/analysis/conversations', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const type = req.query.type || 'ip';
+    const data = await pcap.getConversations(req.params.id, type);
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.get('/api/pcap/captures/:id/packets', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const filter = req.query.filter || '';
+    const limit = Math.min(500, parseInt(req.query.limit) || 200);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const data = await pcap.getPackets(req.params.id, filter, limit, offset);
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
+app.get('/api/pcap/captures/:id/export', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const { record, filePath } = await pcap.getPcapFile(req.params.id);
+    res.download(filePath, record.originalName);
+  } catch (e) { next(new NotFoundError(e.message)); }
+});
+
+// ---- Live Capture ----
+app.get('/api/capture/interfaces', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    if (!pcap.isTsharkAvailable()) return res.json({ available: false, interfaces: [] });
+    const interfaces = await pcap.listInterfaces();
+    res.json({ available: true, interfaces });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/capture/start', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const { interface: iface, duration = 30, filter = '' } = req.body || {};
+    if (!iface) return res.status(400).json({ error: 'interface is required' });
+    const captureId = await pcap.startLiveCapture(iface, parseInt(duration), filter);
+    audit('capture_start', req, { interface: iface, duration, filter });
+    res.status(201).json({ captureId, interface: iface, duration, filter, startedAt: new Date().toISOString() });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/capture/stop', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const { captureId } = req.body || {};
+    if (!captureId) return res.status(400).json({ error: 'captureId is required' });
+    pcap.stopLiveCapture(captureId);
+    audit('capture_stop', req, { captureId });
+    res.json({ status: 'stopped', captureId });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/capture/active', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  res.json(pcap.getActiveCaptures());
+});
+
+// ---- Display Filter Validation & Filtering ----
+app.post('/api/pcap/validate-filter', authenticate, authorize('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const { filter } = req.body || {};
+    const result = await pcap.validateDisplayFilter(filter);
+    res.json(result);
+  } catch (e) { next(e); }
+});
+
+
+
+function evaluateTokens(tokens, item) {
+  let result = true;
+  let i = 0;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token === '(') {
+      const subTokens = [];
+      let depth = 1;
+      i++;
+      while (i < tokens.length && depth > 0) {
+        if (tokens[i] === '(') depth++;
+        else if (tokens[i] === ')') { depth--; if (depth === 0) break; }
+        subTokens.push(tokens[i]);
+        i++;
+      }
+      const subResult = evaluateTokens(subTokens, item);
+      if (i < tokens.length - 1 && (tokens[i + 1] === '&&' || tokens[i + 1] === 'and')) { result = result && subResult; i += 2; }
+      else if (i < tokens.length - 1 && (tokens[i + 1] === '||' || tokens[i + 1] === 'or')) { result = result || subResult; i += 2; }
+      else result = result && subResult;
+    } else if (token === '!' || token === 'not') {
+      i++;
+      const negResult = evaluateTokens([tokens[i]], item);
+      result = result && !negResult;
+      i++;
+    } else if (token === '&&' || token === 'and' || token === '||' || token === 'or') {
+      i++;
+    } else {
+      const exprResult = evaluateSingleExpr(token, item);
+      if (i < tokens.length - 1 && (tokens[i + 1] === '&&' || tokens[i + 1] === 'and')) { result = result && exprResult; i += 2; }
+      else if (i < tokens.length - 1 && (tokens[i + 1] === '||' || tokens[i + 1] === 'or')) { result = result || exprResult; i += 2; }
+      else { result = result && exprResult; i++; }
+    }
+  }
+  return result;
+}
+
+function evaluateSingleExpr(token, item) {
+  const match = token.match(/^([\w.]+)\s*([!=<>]+|contains|matches)\s*(.+)$/i);
+  if (!match) {
+    if (token.startsWith('!')) return !evaluateSingleExpr(token.slice(1), item);
+    return false;
+  }
+  const [, field, operator, valueRaw] = match;
+  const value = valueRaw.replace(/^"|"$/g, '').toLowerCase();
+  const fieldValue = getNidsFieldValue(field, item);
+  if (fieldValue === null || fieldValue === undefined) return false;
+  const strVal = String(fieldValue).toLowerCase();
+  switch (operator) {
+    case '==': return strVal === value;
+    case '!=': return strVal !== value;
+    case '>': return parseFloat(strVal) > parseFloat(value);
+    case '<': return parseFloat(strVal) < parseFloat(value);
+    case '>=': return parseFloat(strVal) >= parseFloat(value);
+    case '<=': return parseFloat(strVal) <= parseFloat(value);
+    case 'contains': return strVal.includes(value);
+    case 'matches': try { return new RegExp(value, 'i').test(strVal); } catch { return false; }
+    default: return true;
+  }
+}
+
+function getNidsFieldValue(field, item) {
+  const map = {
+    'ip.src': 'srcIp', 'ip.dst': 'destIp', 'ip.addr': null,
+    'tcp.srcport': 'srcPort', 'tcp.dstport': 'destPort',
+    'udp.srcport': 'srcPort', 'udp.dstport': 'destPort',
+    'frame.len': 'bytes', 'frame.protocols': 'protocol', 'ip.proto': 'protocol'
+  };
+  if (field === 'ip.addr') return `${item.srcIp} ${item.destIp}`;
+  if (field === 'tcp.port') return `${item.srcPort} ${item.destPort}`;
+  const mapped = map[field];
+  if (mapped && item[mapped] !== undefined) return item[mapped];
+  if (item[field] !== undefined) return item[field];
+  return null;
+}
+
+// ---- TShark status ----
+app.get('/api/pcap/status', optionalAuth, (req, res) => {
+  res.json({
+    tsharkAvailable: pcap.isTsharkAvailable(),
+    tsharkPath: pcap.findTshark(),
+    captureDir: pcap.PCAP_DIR,
+    captureCount: pcap.readMeta().length
+  });
+});
+
+// ---- Real Host Monitoring ----
+app.get('/api/monitor/connections', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const connections = monitor.getConnections();
+    res.json(Array.isArray(connections) ? connections : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/ports', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const ports = monitor.getOpenPorts();
+    res.json(Array.isArray(ports) ? ports : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/process/:pid', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const detail = monitor.getProcessDetail(req.params.pid);
+    res.json(detail || { error: 'Process not found' });
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
+
+app.get('/api/monitor/interfaces', optionalAuth, (req, res) => {
+  try {
+    const ifaces = monitor.getTrafficStats();
+    res.json(Array.isArray(ifaces) ? ifaces : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/system', optionalAuth, (req, res) => {
+  try {
+    const info = monitor.getSystemInfo();
+    res.json(info || {});
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
+
+app.get('/api/monitor/bandwidth', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const bw = monitor.getBandwidthUsage();
+    res.json(Array.isArray(bw) ? bw : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/arp', optionalAuth, (req, res) => {
+  try {
+    const arp = monitor.getArpTable();
+    res.json(Array.isArray(arp) ? arp : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/dns-cache', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const cache = monitor.getDnsCache();
+    res.json(Array.isArray(cache) ? cache : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/monitor/routing-table', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const routes = monitor.getRoutingTable();
+    res.json(Array.isArray(routes) ? routes : []);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.post('/api/monitor/scan', authenticate, authorize('admin', 'analyst'), (req, res) => {
+  try {
+    const { subnet } = req.body || {};
+    if (!subnet) return res.status(400).json({ error: 'subnet is required (e.g. 192.168.1.0/24)' });
+    const base = subnet.split('/')[0].split('.').slice(0, 3).join('.') + '.0';
+    const devices = monitor.scanNetwork(base);
+    res.json(Array.isArray(devices) ? devices : []);
+  } catch (err) {
+    res.json({ error: err.message });
+  }
 });
 
 // ---- Framework/CSF ----

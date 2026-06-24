@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCAP Analysis - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/app.js" defer></script>
+  <script src="/pcap-analysis.js" defer></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Framework</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Plan</div>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Automation</div>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Infrastructure</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Packet Analysis</div>
+          <a href="/pcap-analysis" class="nav-item active"><span class="icon">&#128220;</span> PCAP Analysis</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Reports</div>
+          <a href="/customer-report" class="nav-item"><span class="icon">&#128202;</span> Customer Report</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128220; PCAP Analysis</h2>
+          <div class="subtitle">Upload, analyze, and export packet capture files with Wireshark integration</div>
+        </div>
+        <div class="header-actions">
+          <span id="tsharkStatus" class="tag">Checking tshark...</span>
+        </div>
+      </div>
+
+      <div class="quick-actions" id="quickActions">
+        <div class="quick-action-card" id="uploadPcapBtn">
+          <div class="qa-icon">&#128194;</div>
+          <div>
+            <div class="qa-text">Upload PCAP</div>
+            <div class="qa-sub">Import .pcap/.pcapng files</div>
+          </div>
+        </div>
+        <div class="quick-action-card" id="liveCaptureBtn">
+          <div class="qa-icon">&#128265;</div>
+          <div>
+            <div class="qa-text">Live Capture</div>
+            <div class="qa-sub">Capture packets in real time</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Section -->
+      <div class="card" id="uploadSection" style="display:none;margin-bottom:20px">
+        <div class="card-header">
+          <div class="card-title">Upload Packet Capture</div>
+          <button class="btn btn-secondary btn-sm" id="closeUploadBtn">&times;</button>
+        </div>
+        <div class="form-container">
+          <div class="form-group">
+            <label>Select PCAP file (.pcap, .pcapng, .cap)</label>
+            <input type="file" class="form-control" id="pcapFileInput" accept=".pcap,.pcapng,.cap">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="uploadBtn">Upload &amp; Analyze</button>
+          </div>
+          <div id="uploadProgress" style="margin-top:12px;display:none">
+            <div class="loading-text">Uploading and analyzing...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Capture Section -->
+      <div class="card" id="captureSection" style="display:none;margin-bottom:20px">
+        <div class="card-header">
+          <div class="card-title">Live Packet Capture</div>
+          <button class="btn btn-secondary btn-sm" id="closeCaptureBtn">&times;</button>
+        </div>
+        <div class="form-container">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Interface</label>
+              <select class="form-control" id="captureInterface"></select>
+            </div>
+            <div class="form-group">
+              <label>Duration (seconds)</label>
+              <input type="number" class="form-control" id="captureDuration" value="30" min="5" max="300">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>BPF/Display Filter (optional)</label>
+            <input type="text" class="form-control" id="captureFilter" placeholder="e.g., port 80 or host 10.0.0.1">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="startCaptureBtn">Start Capture</button>
+          </div>
+          <div id="captureStatus" style="margin-top:12px;display:none"></div>
+        </div>
+      </div>
+
+      <!-- Captures List -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <div class="card-title">Captures</div>
+          <button class="btn btn-secondary btn-sm" id="refreshCapturesBtn">Refresh</button>
+        </div>
+        <div id="capturesList">
+          <div class="empty-state">
+            <div class="empty-icon">&#128220;</div>
+            <h3>No captures yet</h3>
+            <p>Upload a PCAP file or start a live capture to begin analysis</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analysis View -->
+      <div id="analysisView" style="display:none">
+        <div class="page-header">
+          <div>
+            <h3 id="analysisTitle">Analysis</h3>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="exportPcapBtn">Download PCAP</button>
+            <button class="btn btn-secondary btn-sm" id="closeAnalysisBtn">Close</button>
+          </div>
+        </div>
+
+        <div class="dashboard-grid" id="analysisStats">
+          <div class="stat-card stat-info"><div class="stat-label">Packets</div><div class="stat-value" id="analysisPackets">-</div></div>
+          <div class="stat-card stat-success"><div class="stat-label">File Size</div><div class="stat-value" id="analysisSize">-</div></div>
+          <div class="stat-card stat-warning"><div class="stat-label">Protocols</div><div class="stat-value" id="analysisProtocols">-</div></div>
+          <div class="stat-card stat-critical"><div class="stat-label">Uploaded</div><div class="stat-value" id="analysisDate">-</div></div>
+        </div>
+
+        <div class="charts-row">
+          <div class="chart-container">
+            <h3>Protocol Hierarchy</h3>
+            <div id="protocolHierarchy"><div class="empty-state"><p>Loading...</p></div></div>
+          </div>
+          <div class="chart-container">
+            <h3>Endpoints</h3>
+            <div class="filters-bar">
+              <select class="filter-select" id="endpointTypeFilter">
+                <option value="ip">IPv4</option>
+                <option value="ipv6">IPv6</option>
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+              </select>
+            </div>
+            <div class="data-table-wrapper" style="max-height:300px;overflow-y:auto">
+              <table class="data-table">
+                <thead><tr><th>Address</th><th>Packets</th><th>Bytes</th></tr></thead>
+                <tbody id="endpointsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <div class="card-title">Conversations</div>
+            <select class="filter-select" id="convTypeFilter">
+              <option value="ip">IPv4</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+            </select>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Address A</th><th>Address B</th><th>Packets A→B</th><th>Packets B→A</th><th>Total Bytes</th></tr></thead>
+              <tbody id="conversationsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Packets</div>
+            <div class="header-actions" style="gap:8px">
+              <input type="text" class="filter-input" id="packetFilter" placeholder="Wireshark display filter..." style="min-width:300px">
+              <button class="btn btn-secondary btn-sm" id="applyPacketFilter">Apply</button>
+            </div>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>#</th><th>Time</th><th>Source</th><th>Destination</th><th>Protocol</th><th>Length</th><th>Info</th></tr></thead>
+              <tbody id="packetsTableBody"></tbody>
+            </table>
+          </div>
+          <div id="packetPagination" style="padding:12px 16px;display:flex;justify-content:center;gap:8px"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

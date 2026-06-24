@@ -95,7 +95,6 @@
         }
 
         const data = await res.json();
-        localStorage.setItem('nids_token', data.token);
         localStorage.setItem('nids_user', JSON.stringify(data.user));
         window.location.href = '/';
       } catch (err) {

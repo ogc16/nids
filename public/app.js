@@ -1,14 +1,5 @@
 const API_BASE = '/api';
 
-function getToken() {
-  return localStorage.getItem('nids_token');
-}
-
-function setToken(token) {
-  if (token) localStorage.setItem('nids_token', token);
-  else localStorage.removeItem('nids_token');
-}
-
 function getCurrentUser() {
   try { return JSON.parse(localStorage.getItem('nids_user')); } catch { return null; }
 }
@@ -19,19 +10,14 @@ function setCurrentUser(user) {
 }
 
 async function apiFetch(path, options = {}) {
-  const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, { headers, ...options });
+  const res = await fetch(url, { headers, credentials: 'include', ...options });
 
   if (res.status === 401 && !path.includes('/auth/login')) {
-    setToken(null);
     setCurrentUser(null);
-    const loginPage = '/login';
     if (!window.location.pathname.includes('login')) {
-      window.location.href = loginPage;
+      window.location.href = '/login';
     }
     throw new Error('Authentication required');
   }
@@ -45,7 +31,6 @@ async function apiFetch(path, options = {}) {
 
   const data = await res.json();
 
-  // Auto-unwrap paginated responses for transparent backward compat
   if (data && typeof data === 'object' && Array.isArray(data.items) && data.pagination) {
     data.items._pagination = data.pagination;
     return data.items;
@@ -181,10 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!window.location.pathname.includes('login')) {
     showLoading('Loading workspace');
     _loadingTimer = setTimeout(hideLoading, 3000);
-    if (!getToken()) {
-      window.location.href = '/login';
-      return;
-    }
     connectSSE();
   }
 

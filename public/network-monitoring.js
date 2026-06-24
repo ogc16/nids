@@ -21,14 +21,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusFilter = document.getElementById('statusFilter');
   const appFilter = document.getElementById('appFilter');
   const searchInput = document.getElementById('searchInput');
+  const wiresharkFilter = document.getElementById('wiresharkFilter');
+  const filterStatus = document.getElementById('wiresharkFilterStatus');
 
   let chartInstances = {};
   let data = [];
   let refreshInterval;
+  let wiresharkFilterActive = '';
 
   async function loadData() {
     try {
-      data = await apiFetch('/network-traffic');
+      const query = wiresharkFilterActive ? `?displayFilter=${encodeURIComponent(wiresharkFilterActive)}` : '';
+      data = await apiFetch('/network-traffic' + query);
       const stats = await apiFetch('/network-traffic/stats');
 
       document.getElementById('totalFlows').textContent = stats.totalFlows;
@@ -183,6 +187,59 @@ document.addEventListener('DOMContentLoaded', async () => {
   statusFilter.onchange = renderTable;
   appFilter.onchange = renderTable;
   searchInput.oninput = renderTable;
+  wiresharkFilter.onkeydown = (e) => { if (e.key === 'Enter') applyWiresharkFilter(); };
+
+  document.getElementById('applyWiresharkFilter').onclick = applyWiresharkFilter;
+  document.getElementById('clearWiresharkFilter').onclick = () => {
+    wiresharkFilter.value = '';
+    wiresharkFilterActive = '';
+    filterStatus.textContent = '';
+    loadData();
+  };
+
+  document.getElementById('openInWiresharkBtn').onclick = () => {
+    const filter = wiresharkFilter.value.trim();
+    if (filter) {
+      navigator.clipboard.writeText(filter).then(() => {
+        showToast('Wireshark display filter copied to clipboard', 'success');
+      }).catch(() => {
+        showToast('Select the filter text and copy manually', 'error');
+      });
+    } else {
+      const selectedProtocol = protocolFilter.value;
+      const selectedStatus = statusFilter.value;
+      let suggestion = '';
+      if (selectedProtocol) suggestion = `ip.proto=="${selectedProtocol}"`;
+      if (selectedStatus) suggestion += (suggestion ? ' && ' : '') + `frame.protocols contains "${selectedStatus}"`;
+      if (!suggestion) suggestion = 'ip.src==10.0.0.1 || ip.dst==10.0.0.1';
+      wiresharkFilter.value = suggestion;
+      wiresharkFilterActive = suggestion;
+      filterStatus.innerHTML = `<span class="tag tag-active">Built-in filter applied</span>`;
+      loadData();
+    }
+  };
+
+  document.getElementById('exportTrafficCsv').onclick = () => {
+    const a = document.createElement('a');
+    a.href = '/api/network-traffic/export';
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  function applyWiresharkFilter() {
+    const filter = wiresharkFilter.value.trim();
+    if (!filter) {
+      wiresharkFilterActive = '';
+      filterStatus.textContent = '';
+      loadData();
+      return;
+    }
+    wiresharkFilterActive = filter;
+    filterStatus.innerHTML = `<span class="tag tag-in-progress">Filter applied</span>`;
+    loadData();
+  }
 
   await loadData();
 
