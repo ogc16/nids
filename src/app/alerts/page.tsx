@@ -1,52 +1,48 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Alert } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
+import { downloadAsJson, downloadAsCsv } from "@/lib/export";
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const res = await fetch("/api/alerts");
-      const data: Alert[] = await res.json();
-      setAlerts(data);
-    } catch {
-      // Ignore
-    }
-  }, []);
+  const [localUpdates, setLocalUpdates] = useState<Record<string, Alert["status"]>>({});
 
   useEffect(() => {
-    fetchAlerts();
-    pollingRef.current = setInterval(fetchAlerts, 3000);
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [fetchAlerts]);
+    const es = new EventSource("/api/stream");
+
+    es.addEventListener("alerts", (e) => {
+      setAlerts(JSON.parse(e.data));
+    });
+
+    return () => es.close();
+  }, []);
 
   const updateStatus = async (alertId: string, status: Alert["status"]) => {
+    setLocalUpdates((prev) => ({ ...prev, [alertId]: status }));
     await fetch("/api/alerts", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ alertId, status }),
     });
-    fetchAlerts();
   };
 
   const clearAll = async () => {
+    setAlerts([]);
     await fetch("/api/alerts", { method: "DELETE" });
-    fetchAlerts();
   };
 
+  const getStatus = (alert: Alert) => localUpdates[alert.id] || alert.status;
+
   const filtered = alerts.filter((a) => {
-    if (filter !== "all" && a.status !== filter) return false;
+    const status = getStatus(a);
+    if (filter !== "all" && status !== filter) return false;
     if (severityFilter !== "all" && a.severity !== severityFilter) return false;
     return true;
   });
@@ -83,6 +79,12 @@ export default function AlertsPage() {
               { label: "Dismissed", value: "dismissed" },
             ]}
           />
+          <Button variant="secondary" size="sm" onClick={() => downloadAsJson(alerts, "alerts")}>
+            Export JSON
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => downloadAsCsv(alerts as unknown as Record<string, unknown>[], "alerts")}>
+            Export CSV
+          </Button>
           <Button variant="danger" size="sm" onClick={clearAll}>
             Clear All
           </Button>
@@ -109,7 +111,7 @@ export default function AlertsPage() {
                       {alert.title}
                     </span>
                     <Badge variant={alert.severity}>{alert.severity}</Badge>
-                    <Badge variant={alert.status}>{alert.status}</Badge>
+                    <Badge variant={getStatus(alert)}>{getStatus(alert)}</Badge>
                   </div>
                   <p className="mt-1 text-sm text-zinc-400">{alert.description}</p>
                   <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-500">
@@ -126,7 +128,7 @@ export default function AlertsPage() {
                   </div>
                 </div>
                 <div className="ml-4 flex shrink-0 gap-2">
-                  {alert.status === "new" && (
+                  {getStatus(alert) === "new" && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -135,7 +137,7 @@ export default function AlertsPage() {
                       Investigate
                     </Button>
                   )}
-                  {alert.status === "investigating" && (
+                  {getStatus(alert) === "investigating" && (
                     <Button
                       variant="primary"
                       size="sm"
@@ -144,7 +146,7 @@ export default function AlertsPage() {
                       Resolve
                     </Button>
                   )}
-                  {alert.status !== "dismissed" && (
+                  {getStatus(alert) !== "dismissed" && (
                     <Button
                       variant="ghost"
                       size="sm"

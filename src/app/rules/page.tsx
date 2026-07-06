@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { DetectionRule } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { downloadAsJson } from "@/lib/export";
 
 export default function RulesPage() {
   const [rules, setRules] = useState<DetectionRule[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchRules = useCallback(async () => {
+  const fetchRules = async () => {
     try {
       const res = await fetch("/api/rules");
       const data: DetectionRule[] = await res.json();
@@ -19,15 +19,11 @@ export default function RulesPage() {
     } catch {
       // Ignore
     }
-  }, []);
+  };
 
   useEffect(() => {
     fetchRules();
-    pollingRef.current = setInterval(fetchRules, 3000);
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [fetchRules]);
+  }, []);
 
   const toggleRule = async (id: string) => {
     await fetch("/api/rules", {
@@ -47,11 +43,6 @@ export default function RulesPage() {
     fetchRules();
   };
 
-  const resetRules = async () => {
-    await fetch("/api/rules", { method: "POST" });
-    fetchRules();
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -62,8 +53,8 @@ export default function RulesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="sm" onClick={resetRules}>
-            Reset to Defaults
+          <Button variant="secondary" size="sm" onClick={() => downloadAsJson(rules, "rules")}>
+            Export JSON
           </Button>
           <Button variant="primary" size="sm" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Cancel" : "New Rule"}

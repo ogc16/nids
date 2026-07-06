@@ -1,33 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Packet } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { downloadAsJson, downloadAsCsv } from "@/lib/export";
 
 export default function PacketsPage() {
   const [packets, setPackets] = useState<Packet[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchPackets = useCallback(async () => {
-    try {
-      const res = await fetch("/api/packets");
-      const data: Packet[] = await res.json();
-      setPackets(data.slice(-100).reverse());
-    } catch {
-      // Ignore
-    }
-  }, []);
 
   useEffect(() => {
-    fetchPackets();
-    pollingRef.current = setInterval(fetchPackets, 3000);
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [fetchPackets]);
+    const es = new EventSource("/api/stream");
+
+    es.addEventListener("packets", (e) => {
+      setPackets(JSON.parse(e.data));
+    });
+
+    return () => es.close();
+  }, []);
 
   const filtered = packets.filter((p) => {
     if (filter === "malicious" && !p.isMalicious) return false;
@@ -71,6 +64,12 @@ export default function PacketsPage() {
             <option value="malicious">Malicious Only</option>
             <option value="normal">Normal Only</option>
           </select>
+          <Button variant="secondary" size="sm" onClick={() => downloadAsJson(packets, "packets")}>
+            Export JSON
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => downloadAsCsv(packets as unknown as Record<string, unknown>[], "packets")}>
+            Export CSV
+          </Button>
         </div>
       </div>
 
