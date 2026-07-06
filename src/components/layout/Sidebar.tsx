@@ -21,7 +21,7 @@ export function Sidebar() {
   useEffect(() => {
     fetch("/api/network")
       .then((r) => r.json())
-      .then((d) => setIp(d.ip))
+      .then((d) => setIp(d.publicIp || d.ip))
       .catch(() => {});
   }, []);
 

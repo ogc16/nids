@@ -15,6 +15,7 @@ interface SpeedResult {
 
 export default function NetworkPage() {
   const [ip, setIp] = useState("");
+  const [publicIp, setPublicIp] = useState("");
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<SpeedResult>({ latency: null, download: null, upload: null });
   const [stats, setStats] = useState<TrafficStats | null>(null);
@@ -22,7 +23,7 @@ export default function NetworkPage() {
   useEffect(() => {
     fetch("/api/network")
       .then((r) => r.json())
-      .then((d) => setIp(d.ip));
+      .then((d) => { setIp(d.ip); setPublicIp(d.publicIp || ""); });
   }, []);
 
   useEffect(() => {
@@ -48,7 +49,10 @@ export default function NetworkPage() {
       <div>
         <h1 className="text-xl font-bold text-zinc-100">Network Diagnostics</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Your IP: <span className="font-mono text-emerald-400">{ip || "..."}</span>
+          Local IP: <span className="font-mono text-zinc-400">{ip || "..."}</span>
+          {publicIp && publicIp !== ip && (
+            <> &middot; Public: <span className="font-mono text-emerald-400">{publicIp}</span></>
+          )}
         </p>
       </div>
 

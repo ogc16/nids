@@ -19,11 +19,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ t: Date.now() });
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+  const localIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")
     || "127.0.0.1";
 
-  return NextResponse.json({ ip });
+  let publicIp = "";
+  try {
+    const res = await fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(3000) });
+    const data = await res.json() as { ip: string };
+    publicIp = data.ip;
+  } catch {
+    /* ipify unavailable */
+  }
+
+  return NextResponse.json({ ip: localIp, publicIp });
 }
 
 export async function POST(request: NextRequest) {
