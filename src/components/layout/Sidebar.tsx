@@ -2,18 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, Activity, AlertTriangle, FileSearch, Server } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Shield, Activity, AlertTriangle, FileSearch, Server, Wifi } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Activity },
   { href: "/packets", label: "Packets", icon: FileSearch },
   { href: "/alerts", label: "Alerts", icon: AlertTriangle },
   { href: "/assets", label: "Assets", icon: Server },
+  { href: "/network", label: "Network", icon: Wifi },
   { href: "/rules", label: "Rules", icon: Shield },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [ip, setIp] = useState("");
+
+  useEffect(() => {
+    fetch("/api/network")
+      .then((r) => r.json())
+      .then((d) => setIp(d.ip))
+      .catch(() => {});
+  }, []);
 
   return (
     <aside className="flex w-56 flex-col border-r border-zinc-800 bg-zinc-900/50">
@@ -46,6 +56,9 @@ export function Sidebar() {
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
           System Online
         </div>
+        {ip && (
+          <p className="mt-1 font-mono text-[10px] text-zinc-600">{ip}</p>
+        )}
       </div>
     </aside>
   );

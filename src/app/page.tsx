@@ -10,6 +10,7 @@ import { ProtocolPieChart } from "@/components/dashboard/ProtocolPieChart";
 import { TopIpsTable } from "@/components/dashboard/TopIpsTable";
 import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { useAlertSiren } from "@/lib/use-alert-siren";
 
 interface AssetRow {
   asset: NetworkAsset;
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<TrafficStats | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
+  const checkAlerts = useAlertSiren();
 
   useEffect(() => {
     const es = new EventSource("/api/stream");
@@ -31,7 +33,9 @@ export default function Dashboard() {
     });
 
     es.addEventListener("alerts", (e) => {
-      setAlerts(JSON.parse(e.data));
+      const data: Alert[] = JSON.parse(e.data);
+      setAlerts(data);
+      checkAlerts(data);
     });
 
     es.addEventListener("assets", (e) => {

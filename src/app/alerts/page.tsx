@@ -7,18 +7,22 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { downloadAsJson, downloadAsCsv } from "@/lib/export";
+import { useAlertSiren } from "@/lib/use-alert-siren";
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [localUpdates, setLocalUpdates] = useState<Record<string, Alert["status"]>>({});
+  const checkAlerts = useAlertSiren();
 
   useEffect(() => {
     const es = new EventSource("/api/stream");
 
     es.addEventListener("alerts", (e) => {
-      setAlerts(JSON.parse(e.data));
+      const data: Alert[] = JSON.parse(e.data);
+      setAlerts(data);
+      checkAlerts(data);
     });
 
     return () => es.close();
