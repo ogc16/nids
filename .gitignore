@@ -6,3 +6,9 @@ data/automations-log.json
 data/asset-logs.json
 certs/
 data/pcap/
+data/nids.db
+data/nids.db-shm
+data/nids.db-wal
+.next/
+.agents/
+skills-lock.json

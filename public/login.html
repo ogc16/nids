@@ -37,7 +37,7 @@
         </div>
         <div class="form-group">
           <label for="password">Password</label>
-          <input type="password" id="password" placeholder="Enter your password" value="admin" required>
+           <input type="password" id="password" placeholder="Enter your password" required>
         </div>
         <button type="submit" class="btn btn-primary login-btn" id="loginBtn">Sign In</button>
       </form>
@@ -47,16 +47,18 @@
   </div>
 
   <script>
-    if (!localStorage.getItem('cookies_accepted')) {
-      const banner = document.createElement('div');
-      banner.className = 'cookie-banner';
-      banner.innerHTML = '<p>This site uses cookies for authentication and security purposes. By continuing, you consent to our use of cookies.</p><button class="btn btn-primary" id="cookieAccept">Accept</button>';
-      document.body.appendChild(banner);
-      document.getElementById('cookieAccept').onclick = () => {
-        localStorage.setItem('cookies_accepted', 'true');
-        banner.remove();
-      };
-    }
+    try {
+      if (!localStorage.getItem('cookies_accepted')) {
+        const banner = document.createElement('div');
+        banner.className = 'cookie-banner';
+        banner.innerHTML = '<p>This site uses cookies for authentication and security purposes. By continuing, you consent to our use of cookies.</p><button class="btn btn-primary" id="cookieAccept">Accept</button>';
+        document.body.appendChild(banner);
+        document.getElementById('cookieAccept').onclick = () => {
+          localStorage.setItem('cookies_accepted', 'true');
+          banner.remove();
+        };
+      }
+    } catch (_) { /* localStorage unavailable */ }
 
     function showLoading(msg) {
       const el = document.createElement('div');
@@ -66,8 +68,10 @@
       document.body.appendChild(el);
     }
     function hideLoading() {
-      const el = document.getElementById('loginLoading');
-      if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 300); }
+      try {
+        const el = document.getElementById('loginLoading');
+        if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 300); }
+      } catch (_) {}
     }
 
     document.getElementById('loginForm').onsubmit = async (e) => {
@@ -77,17 +81,28 @@
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
 
+      if (!username || !password) {
+        errorEl.textContent = 'Please enter username and password';
+        errorEl.style.display = 'block';
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Signing in...';
       errorEl.style.display = 'none';
       showLoading('Signing in');
 
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ username, password }),
+          signal: controller.signal
         });
+        clearTimeout(timeout);
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Invalid credentials' }));
@@ -99,7 +114,8 @@
         window.location.href = '/';
       } catch (err) {
         hideLoading();
-        errorEl.textContent = err.message;
+        console.error('Login error:', err);
+        errorEl.textContent = err.name === 'AbortError' ? 'Request timed out. Server may be down.' : err.message;
         errorEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Sign In';

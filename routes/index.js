@@ -1,0 +1,28 @@
+const express = require('express');
+const router = express.Router();
+const sse = require('./sse');
+router.use('/auth', require('./auth'));
+router.use(require('./traffic'));
+router.use(require('./stats'));
+router.use(require('./network'));
+router.use(require('./crud').router);
+router.use(require('./pcap'));
+router.use(require('./monitor'));
+router.use(require('./mitre'));
+router.use(require('./syslog'));
+router.use(require('./snort'));
+router.use(require('./agents'));
+router.use(require('./soar'));
+router.use(require('./fim'));
+router.use(require('./vulnscan'));
+router.use(require('./compliance'));
+router.use(require('./ml'));
+router.use(require('./retention'));
+router.use(require('./extra'));
+router.use(require('./alerting'));
+router.use(require('./automations').router);
+router.use(require('./setup'));
+
+sse.setup(router);
+
+module.exports = { router, broadcast: sse.broadcast };

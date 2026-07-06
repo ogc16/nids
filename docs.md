@@ -2,29 +2,49 @@
 
 ## Architecture Overview
 
-The NIDS workspace is a single-page application (SPA) with a Node.js/Express backend serving a REST API and static frontend files. Authentication uses JWT tokens with HTTP-only cookies. Data is stored in JSON files on disk.
+The NIDS workspace is a single-page application (SPA) with a Node.js/Express backend serving a REST API and static frontend files. Authentication uses JWT tokens with HTTP-only cookies and CSRF token headers. Data is stored in JSON files on disk.
 
 ```
-Browser ──HTTP/HTTPS──> Express Server ──fs──> JSON files
-                                │
-                      ┌─────────┼─────────┐
-                      │         │         │
-                   tshark   PowerShell   Windows API
-                   (PCAP)   (Monitor)    (Updates)
+Browser ──HTTP/HTTPS──> app.js (middleware) ── routes/index.js ──> lib/ modules ──fs──> JSON files
+                              │                                               │
+                         helmet / cors /                             20 modules for:
+                         rate-limit /                                 PCAP, monitor, patch,
+                         CSRF cookie /                                MITRE, Snort, SOAR,
+                         static files                                 FIM, vulnscan, ML,
+                                                                       compliance, syslog,
+                                                                       agents, alerting,
+                                                                       retention, audit...
+                              │                                               │
+                         routes/ (22 modules)                         tshark / PowerShell / WinAPI
 ```
 
-## Server (server.js)
+`server.js` (~20 lines) boots the app. `app.js` configures middleware and mounts all routes. `routes/index.js` composes 22 route modules. All business logic lives in `lib/`.
 
-The Express server listens on `http://localhost:3000` and optionally `https://localhost:3443`. It provides:
+## Entry Point (server.js)
 
-- **Static file serving** from `public/`
-- **REST CRUD** for all data tables
-- **Automations engine** with event hooks on create/update
-- **Authentication** via JWT (Bearer token + HTTP-only cookie)
-- **PCAP analysis** via tshark wrapper
-- **Web traffic monitoring** with HTTP analytics (methods, status codes, URIs, hosts)
-- **Host monitoring** via PowerShell
-- **Patch management** via PowerShell/Windows Update API
+`server.js` is a thin ~20-line entry point. It imports `app.js` (Express app), `lib/auth.js` (admin seed), `lib/config.js`, and `lib/tls.js` (certificates), then starts HTTP and HTTPS listeners.
+
+```js
+seedAdminUser();
+const tls = loadCerts();
+if (tls) https.createServer(tls, app).listen(3443, ...);
+app.listen(3000, ...);
+```
+
+## Express App Setup (app.js)
+
+`app.js` configures the Express application with all middleware and route mounting:
+
+- **Helmet** — Security headers (CSP disabled for inline scripts)
+- **CORS** — Configurable origin with credentials
+- **JSON body parser** — 1MB limit
+- **Cookie parser** — For auth/CSRF token cookies
+- **HTML extension blocker** — Returns 404 for direct `.html` access (forces clean URLs)
+- **Static file serving** — From `public/`, auto-appends `.html` extension
+- **Rate limiting** — Global, API-specific (100 req/window), and auth-specific (20 req/window)
+- **CSRF protection** — Compares `csrf-token` cookie against `X-CSRF-Token` header (skipped for GET/HEAD/OPTIONS, login, and password change)
+- **Route mounting** — Maps `/api` to `routes/index.js`
+- **Error handlers** — 404 `notFoundHandler` and generic `errorHandler` from `lib/errors.js`
 
 ### Key Server Configuration (lib/config.js)
 
@@ -40,19 +60,50 @@ The Express server listens on `http://localhost:3000` and optionally `https://lo
 | `defaultPageSize` | 50 | Pagination default |
 | `maxPageSize` | 500 | Max page size |
 
+## Route Modules (routes/)
+
+The router is composed in `routes/index.js`. Route order is critical — specific route modules (traffic, stats, network) are mounted **before** the generic CRUD router to prevent Express 5 / path-to-regexp v8 from matching literal paths like `/stats` as `/:id` parameters.
+
+| Module | File | Mount Point | Purpose |
+|--------|------|-------------|---------|
+| Auth | `routes/auth.js` | `/api/auth` | Login, logout, user management |
+| Traffic | `routes/traffic.js` | `/api` | Network traffic flows, web traffic, simulation, SSE broadcast |
+| Stats | `routes/stats.js` | `/api` | Dashboard stats, realtime SSE |
+| Network | `routes/network.js` | `/api` | Network asset scanning, IPAM |
+| CRUD | `routes/crud.js` | `/api` | Generic REST for all data tables |
+| PCAP | `routes/pcap.js` | `/api/pcap` | PCAP upload, analysis, live capture |
+| Monitor | `routes/monitor.js` | `/api/monitor` | Host monitoring (connections, ports, system) |
+| MITRE | `routes/mitre.js` | `/api/mitre` | ATT&CK tactics, techniques, matrix, coverage |
+| Syslog | `routes/syslog.js` | `/api/syslog` | Syslog sources, events, forwarding |
+| Snort | `routes/snort.js` | `/api/snort` | Rule validation, parsing, conversion |
+| Agents | `routes/agents.js` | `/api/agents` | Agent registration, data collection |
+| SOAR | `routes/soar.js` | `/api/soar` | Playbook execution, tracking |
+| FIM | `routes/fim.js` | `/api/fim` | File integrity monitoring |
+| Vulnscan | `routes/vulnscan.js` | `/api/vulnscan` | Vulnerability scanning, CVE database |
+| Compliance | `routes/compliance.js` | `/api/compliance` | PCI/HIPAA/GDPR status, controls, evidence |
+| ML | `routes/ml.js` | `/api/ml` | Model training, prediction, anomaly detection |
+| Retention | `routes/retention.js` | `/api/retention` | Data retention policies, archiving, legal holds |
+| Alerting | `routes/alerting.js` | `/api/alerting` | Email/Slack/webhook notification config |
+| Automations | `routes/automations.js` | `/api/automations` | Automation log, triggers, metrics |
+| Setup | `routes/setup.js` | `/api` | Settings, seed data, audit log, health |
+| Extra | `routes/extra.js` | `/api` | Search, customer report, CSF, asset logs |
+| SSE | `routes/sse.js` | shared | Client management and broadcast function |
+
 ## Authentication
 
 ### System
 - JWT-based authentication with HTTP-only cookies (primary) and Bearer token fallback
 - Login at `POST /api/auth/login` with `{ username, password }`
-- Default credentials: `admin` / `admin`
+- Default credentials: `admin` / `admin` (first run generates a random password; for testing, `admin123` works with the dev hash)
 - Cookie is set with `httpOnly: true, sameSite: 'lax'` for CSRF protection
+- CSRF token is returned as `csrf-token` cookie on login and must be echoed in `X-CSRF-Token` header for all state-changing requests
 - Session expires after 8 hours of inactivity
 
 ### Frontend
 - `public/app.js` provides `apiFetch()` which includes credentials via `credentials: 'include'`
 - On 401 response, redirects to `/login`
 - Login page stores user info in `localStorage` (not the token — that's in the cookie)
+- State-changing requests (`POST`, `PUT`, `DELETE`) include `X-CSRF-Token` header from the `csrf-token` cookie
 
 ## Data Layer
 
@@ -68,6 +119,13 @@ All data is stored as JSON arrays in `data/`:
 - `automations-log.json` — Automation event history
 - `pcap-captures.json` — PCAP capture metadata
 - `pcap/` — Directory for uploaded PCAP files
+- `users.json` — User accounts (bcrypt-hashed passwords)
+- `compliance.json` — Compliance framework state (PCI-DSS, HIPAA, GDPR)
+- `alerting-config.json` — Email/Slack/webhook notification configuration
+- `syslog-sources.json` — Syslog source definitions
+- `fim-baselines.json` — File integrity monitoring baselines and scan results
+- `model-results.json` — ML model training and anomaly detection results
+- `retention-policies.json` — Data retention policies and archive status
 
 ### CRUD API
 Generic CRUD endpoints at `/api/:table` with automatic `id` assignment, pagination (`_page`, `_limit` query params), and search (`_search` param). Responses include `Link` headers for pagination.
@@ -292,10 +350,10 @@ Returns audit log of all patch operations with:
 - Install operations require administrator privileges
 - Some PowerShell commands may timeout (45-second default)
 
-## Web Traffic Monitoring (server.js)
+## Web Traffic Monitoring (routes/traffic.js)
 
 ### Architecture
-The web traffic monitoring system analyzes HTTP/HTTPS flows from the `network-traffic.json` data store. Flows are identified as web traffic when they have `httpMethod` set (HTTP/HTTPS protocols). The traffic simulation generates realistic HTTP data including methods, URIs, status codes, hosts, and user agents.
+The web traffic monitoring system analyzes HTTP/HTTPS flows from the `network-traffic.json` data store. Flows are identified as web traffic when they have `httpMethod` set (HTTP/HTTPS protocols). The traffic simulation generates realistic HTTP data including methods, URIs, status codes, hosts, and user agents. Traffic simulation events are broadcast to connected SSE clients via `routes/sse.js`.
 
 ### Endpoints
 
@@ -550,14 +608,28 @@ The PCAP analysis page passes filters directly to tshark's `-Y` flag, supporting
 | 401 errors after login | Clear cookies and localStorage, re-login |
 | Infinite redirect loop | Check that `credentials: 'include'` is in fetch options |
 | Cookie not set | Browser may block third-party cookies; use same-origin |
+| 403 CSRF error | Include `X-CSRF-Token` header from `csrf-token` cookie on POST/PUT/DELETE |
+| CSRF token mismatch | Token in `X-CSRF-Token` header must match `csrf-token` cookie value |
 
 ## Development
 
 ### Adding a New Data Table
 1. Create `data/<table>.json` with `[]`
-2. CRUD is automatic via the generic route handler
-3. Add specific endpoints in `server.js` if needed
+2. CRUD is automatic via the generic route handler in `routes/crud.js`
+3. Add specific endpoints in a new `routes/<name>.js` file and mount it in `routes/index.js`
 4. Create frontend page with `apiFetch` for API calls
+
+### Adding a New Route Module
+1. Create `routes/<name>.js` exporting an Express Router
+2. Mount it in `routes/index.js` — add `router.use(require('./<name>'));` before the extra.js catch-all
+3. If it needs new business logic, add the module in `lib/<name>.js`
+4. For SSE broadcasting, import `sse.broadcast` from `routes/index.js`
+
+### Express 5 Caveats
+- `express-rate-limit` v7+ works with Express 5
+- `path-to-regexp` v8 (used by Express 5.2.1) does not support inline param regex constraints like `:id(\d+)` — use route ordering instead (mount specific paths before generic `/:id`)
+- `res.status()` chaining works as expected
+- Static file serving with `extensions: ['html']` auto-resolves clean URLs to `.html` files
 
 ### Testing
 ```bash
