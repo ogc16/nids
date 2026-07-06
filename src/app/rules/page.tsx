@@ -10,12 +10,14 @@ import { downloadAsJson } from "@/lib/export";
 export default function RulesPage() {
   const [rules, setRules] = useState<DetectionRule[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [builtinCount, setBuiltinCount] = useState(0);
 
   const fetchRules = async () => {
     try {
       const res = await fetch("/api/rules");
-      const data: DetectionRule[] = await res.json();
-      setRules(data);
+      const data = await res.json();
+      setRules(data.rules ?? data);
+      setBuiltinCount(data.builtinCount ?? 0);
     } catch {
       // Ignore
     }
@@ -43,6 +45,15 @@ export default function RulesPage() {
     fetchRules();
   };
 
+  const loadSignatures = async () => {
+    await fetch("/api/rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "load-builtins" }),
+    });
+    fetchRules();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -56,6 +67,11 @@ export default function RulesPage() {
           <Button variant="secondary" size="sm" onClick={() => downloadAsJson(rules, "rules")}>
             Export JSON
           </Button>
+          {builtinCount > 0 && (
+            <Button variant="secondary" size="sm" onClick={loadSignatures}>
+              Load {builtinCount} Signatures
+            </Button>
+          )}
           <Button variant="primary" size="sm" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Cancel" : "New Rule"}
           </Button>

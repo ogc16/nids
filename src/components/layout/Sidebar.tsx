@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, Activity, AlertTriangle, FileSearch, Settings } from "lucide-react";
+import { Shield, Activity, AlertTriangle, FileSearch, Server } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Activity },
   { href: "/packets", label: "Packets", icon: FileSearch },
   { href: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { href: "/assets", label: "Assets", icon: Server },
   { href: "/rules", label: "Rules", icon: Shield },
 ];
 

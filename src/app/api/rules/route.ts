@@ -5,10 +5,15 @@ import {
   toggleRule,
   deleteRule,
   resetRules,
+  loadBuiltinSignatures,
+  getBuiltinSignaturesCount,
 } from "@/lib/rules-engine";
 
 export async function GET() {
-  return NextResponse.json(getRules());
+  return NextResponse.json({
+    rules: getRules(),
+    builtinCount: getBuiltinSignaturesCount(),
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -35,7 +40,12 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}));
+  if (body.action === "load-builtins") {
+    const rules = loadBuiltinSignatures();
+    return NextResponse.json({ success: true, count: rules.length });
+  }
   resetRules();
   return NextResponse.json({ success: true });
 }

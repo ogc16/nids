@@ -37,8 +37,11 @@ export function StatsCards({ stats }: StatsCardsProps) {
     },
   ];
 
+  const insp = stats.inspection;
+  const gridCols = insp ? "lg:grid-cols-5" : "lg:grid-cols-4";
+
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-4 ${gridCols}`}>
       {cards.map((card) => (
         <div
           key={card.label}
@@ -54,6 +57,22 @@ export function StatsCards({ stats }: StatsCardsProps) {
           <div className="mt-0.5 text-xs text-zinc-600">{card.sub}</div>
         </div>
       ))}
+      {insp && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <StatusDot status="active" />
+            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+              Inspection
+            </span>
+          </div>
+          <div className="mt-2 text-2xl font-bold text-zinc-100">
+            {insp.packetsPerSecond.toFixed(0)} <span className="text-sm font-normal text-zinc-500">pkt/s</span>
+          </div>
+          <div className="mt-0.5 text-xs text-zinc-600">
+            {insp.activeWorkers} workers · {insp.avgInspectionMs.toFixed(2)}ms avg
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { generateBatch } from "@/lib/traffic";
-import { evaluateBatch } from "@/lib/detection-engine";
 import { getRules } from "@/lib/rules-engine";
 import { addPackets, addAlerts, getTrafficStats, getAlerts, getPackets } from "@/lib/store";
+import { processBatch, getInspectionMetrics } from "@/lib/inspector";
+import { getAllAssetTraffic } from "@/lib/asset-store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +19,8 @@ function startTraffic() {
     const newPackets = generateBatch(count);
     addPackets(newPackets);
     const rules = getRules();
-    const newAlerts = evaluateBatch(newPackets, rules);
+    const results = processBatch(newPackets, rules);
+    const newAlerts = results.flatMap((r) => r.alerts);
     if (newAlerts.length > 0) addAlerts(newAlerts);
   }, 500);
 }
@@ -55,6 +57,8 @@ export async function GET(req: NextRequest) {
         controller.enqueue(encoder.encode(`event: alerts\ndata: ${JSON.stringify(initialAlerts)}\n\n`));
         const initialPackets = getPackets().slice(-100).reverse();
         controller.enqueue(encoder.encode(`event: packets\ndata: ${JSON.stringify(initialPackets)}\n\n`));
+        const initialAssets = getAllAssetTraffic();
+        controller.enqueue(encoder.encode(`event: assets\ndata: ${JSON.stringify(initialAssets)}\n\n`));
       } catch {
         // Ignore initial push errors
       }
@@ -62,11 +66,14 @@ export async function GET(req: NextRequest) {
       statsInterval = setInterval(() => {
         try {
           const stats = getTrafficStats("1m");
+          stats.inspection = getInspectionMetrics();
           controller.enqueue(encoder.encode(`event: stats\ndata: ${JSON.stringify(stats)}\n\n`));
           const recentAlerts = getAlerts().slice(-100).reverse();
           controller.enqueue(encoder.encode(`event: alerts\ndata: ${JSON.stringify(recentAlerts)}\n\n`));
           const recentPackets = getPackets().slice(-100).reverse();
           controller.enqueue(encoder.encode(`event: packets\ndata: ${JSON.stringify(recentPackets)}\n\n`));
+          const assets = getAllAssetTraffic();
+          controller.enqueue(encoder.encode(`event: assets\ndata: ${JSON.stringify(assets)}\n\n`));
         } catch {
           // Ignore push errors
         }
