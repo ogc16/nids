@@ -1,44 +1,26 @@
 {
-  "name": "nids-workspace",
-  "version": "2.0.0",
-  "description": "Network Intrusion Detection System - SOC Workspace (Next.js)",
+  "name": "nids",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "node test-api.js",
-    "gen-cert": "node scripts/gen-cert.js"
+    "lint": "eslint"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.11.1",
-    "chart.js": "^4.4.1",
-    "cookie": "^0.7.0",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "express-rate-limit": "^8.5.2",
-    "helmet": "^8.2.0",
-    "jose": "^6.2.3",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.2.0",
-    "next": "^16.2.9",
-    "node-forge": "^1.4.0",
-    "nodemailer": "^9.0.1",
-    "react": "^19.2.7",
-    "react-chartjs-2": "^5.3.1",
-    "react-dom": "^19.2.7",
-    "ssh2": "^1.17.0",
-    "uuid": "^14.0.1"
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "typescript": "^5.3.3"
-  },
-  "overrides": {
-    "postcss": ">=8.5.10"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
