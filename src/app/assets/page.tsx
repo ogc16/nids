@@ -5,6 +5,7 @@ import { NetworkAsset } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { DashboardShell } from "@/components/DashboardShell";
 
 const typeBadge: Record<string, "info" | "error" | "success" | "warning"> = {
   server: "info",
@@ -91,6 +92,7 @@ export default function AssetsPage() {
   };
 
   return (
+    <DashboardShell>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -245,5 +247,6 @@ export default function AssetsPage() {
         </Card>
       )}
     </div>
+    </DashboardShell>
   );
 }

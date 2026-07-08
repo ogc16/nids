@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { DashboardShell } from "@/components/DashboardShell";
 
 interface SpeedResult {
   latency: number | null;
@@ -45,6 +46,7 @@ export default function NetworkPage() {
   };
 
   return (
+    <DashboardShell>
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-zinc-100">Network Diagnostics</h1>
@@ -126,6 +128,7 @@ export default function NetworkPage() {
         </Card>
       </div>
     </div>
+    </DashboardShell>
   );
 }
 
@@ -133,32 +136,52 @@ async function measureLatency(): Promise<number> {
   const samples: number[] = [];
   for (let i = 0; i < 5; i++) {
     const t0 = performance.now();
-    await fetch("/api/network?type=latency");
-    samples.push(performance.now() - t0);
+    try {
+      await fetch("https://connectivitycheck.gstatic.com/generate_204", {
+        mode: "no-cors",
+        signal: AbortSignal.timeout(5000),
+      });
+      samples.push(performance.now() - t0);
+    } catch { /* skip */ }
   }
-  return Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+  return samples.length ? Math.round(Math.min(...samples)) : 0;
 }
 
 async function measureDownload(): Promise<number> {
-  const sizes = [524_288, 1_048_576, 2_097_152];
-  let totalBits = 0;
-  let totalMs = 0;
-  for (const size of sizes) {
-    const t0 = performance.now();
-    const res = await fetch(`/api/network?type=download&size=${size}`);
-    const blob = await res.blob();
-    const elapsed = performance.now() - t0;
-    totalBits += blob.size * 8;
-    totalMs += elapsed;
-  }
-  return parseFloat(((totalBits / totalMs) / 1000).toFixed(1));
+  const size = 10_485_760;
+  const t0 = performance.now();
+  const res = await fetch(`https://speed.cloudflare.com/__down?bytes=${size}`, {
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  const blob = await res.blob();
+  const elapsed = performance.now() - t0;
+  return parseFloat(((blob.size * 8 / elapsed) / 1000).toFixed(1));
 }
 
 async function measureUpload(): Promise<number> {
-  const payload = new TextEncoder().encode("x".repeat(524_288));
+  const payload = new TextEncoder().encode("x".repeat(1_048_576));
+  const streams = 4;
   const t0 = performance.now();
-  const res = await fetch("/api/network?type=upload", { method: "POST", body: payload });
-  const elapsed = performance.now() - t0;
-  const totalBits = payload.length * 8;
-  return parseFloat(((totalBits / elapsed) / 1000).toFixed(1));
+  try {
+    const results = await Promise.allSettled(
+      Array.from({ length: streams }, () =>
+        fetch("https://speed.cloudflare.com/__up", {
+          method: "PUT",
+          body: payload,
+          headers: { "Content-Type": "application/octet-stream" },
+          signal: AbortSignal.timeout(30000),
+        })
+      )
+    );
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    if (succeeded === 0) throw new Error("all upload streams failed");
+    const elapsed = performance.now() - t0;
+    const totalBits = payload.length * 8 * succeeded;
+    return parseFloat(((totalBits / elapsed) / 1000).toFixed(1));
+  } catch {
+    const res = await fetch("/api/network?type=upload", { method: "POST", body: payload });
+    const data = await res.json();
+    return data.mbps;
+  }
 }

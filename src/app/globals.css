@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Calibri', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
 @layer base {
   * {
     scrollbar-width: thin;

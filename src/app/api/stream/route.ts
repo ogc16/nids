@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth";
 import { generateBatch } from "@/lib/traffic";
 import { getRules } from "@/lib/rules-engine";
 import { addPackets, addAlerts, getTrafficStats, getAlerts, getPackets } from "@/lib/store";
@@ -34,6 +35,18 @@ function stopTraffic() {
 }
 
 export async function GET(req: NextRequest) {
+  const token = req.cookies.get("nids_token")?.value
+    || req.headers.get("Authorization")?.replace("Bearer ", "");
+
+  if (!token) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const user = await verifyToken(token);
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const encoder = new TextEncoder();
 
   startTraffic();

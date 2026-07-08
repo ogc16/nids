@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { downloadAsJson, downloadAsCsv } from "@/lib/export";
 import { useAlertSiren } from "@/lib/use-alert-siren";
+import { DashboardShell } from "@/components/DashboardShell";
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -52,6 +53,7 @@ export default function AlertsPage() {
   });
 
   return (
+    <DashboardShell>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -166,5 +168,6 @@ export default function AlertsPage() {
         </div>
       )}
     </div>
+    </DashboardShell>
   );
 }

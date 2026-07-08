@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { downloadAsJson } from "@/lib/export";
+import { DashboardShell } from "@/components/DashboardShell";
 
 export default function RulesPage() {
   const [rules, setRules] = useState<DetectionRule[]>([]);
@@ -55,6 +56,7 @@ export default function RulesPage() {
   };
 
   return (
+    <DashboardShell>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -145,6 +147,7 @@ export default function RulesPage() {
         ))}
       </div>
     </div>
+    </DashboardShell>
   );
 }
 

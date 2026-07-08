@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { downloadAsJson, downloadAsCsv } from "@/lib/export";
+import { DashboardShell } from "@/components/DashboardShell";
 
 export default function PacketsPage() {
   const [packets, setPackets] = useState<Packet[]>([]);
@@ -39,104 +40,106 @@ export default function PacketsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-100">Packet Capture</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Live packet stream - {packets.length} captured, {filtered.length} shown
-          </p>
+    <DashboardShell>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-zinc-100">Packet Capture</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Live packet stream - {packets.length} captured, {filtered.length} shown
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search IP, protocol, payload..."
+              className="w-64 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500"
+            />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            >
+              <option value="all">All Packets</option>
+              <option value="malicious">Malicious Only</option>
+              <option value="normal">Normal Only</option>
+            </select>
+            <Button variant="secondary" size="sm" onClick={() => downloadAsJson(packets, "packets")}>
+              Export JSON
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => downloadAsCsv(packets as unknown as Record<string, unknown>[], "packets")}>
+              Export CSV
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search IP, protocol, payload..."
-            className="w-64 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500"
-          />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500"
-          >
-            <option value="all">All Packets</option>
-            <option value="malicious">Malicious Only</option>
-            <option value="normal">Normal Only</option>
-          </select>
-          <Button variant="secondary" size="sm" onClick={() => downloadAsJson(packets, "packets")}>
-            Export JSON
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => downloadAsCsv(packets as unknown as Record<string, unknown>[], "packets")}>
-            Export CSV
-          </Button>
-        </div>
-      </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-                <th className="pb-3 pr-4 font-medium">Time</th>
-                <th className="pb-3 pr-4 font-medium">Protocol</th>
-                <th className="pb-3 pr-4 font-medium">Source</th>
-                <th className="pb-3 pr-4 font-medium">Destination</th>
-                <th className="pb-3 pr-4 font-medium">Length</th>
-                <th className="pb-3 pr-4 font-medium">Flags</th>
-                <th className="pb-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.slice(0, 200).map((pkt) => (
-                <tr
-                  key={pkt.id}
-                  className={`border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/30 ${
-                    pkt.isMalicious ? "bg-red-900/10" : ""
-                  }`}
-                >
-                  <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
-                    {new Date(pkt.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-300">
-                      {pkt.protocol}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
-                    {pkt.srcIp}:{pkt.srcPort}
-                  </td>
-                  <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
-                    {pkt.dstIp}:{pkt.dstPort}
-                  </td>
-                  <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
-                    {pkt.length} B
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <div className="flex gap-1">
-                      {pkt.flags.map((f) => (
-                        <span
-                          key={f}
-                          className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
-                        >
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-2.5">
-                    {pkt.isMalicious ? (
-                      <Badge variant="error">Malicious</Badge>
-                    ) : (
-                      <Badge variant="success">Normal</Badge>
-                    )}
-                  </td>
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
+                  <th className="pb-3 pr-4 font-medium">Time</th>
+                  <th className="pb-3 pr-4 font-medium">Protocol</th>
+                  <th className="pb-3 pr-4 font-medium">Source</th>
+                  <th className="pb-3 pr-4 font-medium">Destination</th>
+                  <th className="pb-3 pr-4 font-medium">Length</th>
+                  <th className="pb-3 pr-4 font-medium">Flags</th>
+                  <th className="pb-3 font-medium">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
+              </thead>
+              <tbody>
+                {filtered.slice(0, 200).map((pkt) => (
+                  <tr
+                    key={pkt.id}
+                    className={`border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/30 ${
+                      pkt.isMalicious ? "bg-red-900/10" : ""
+                    }`}
+                  >
+                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
+                      {new Date(pkt.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-300">
+                        {pkt.protocol}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
+                      {pkt.srcIp}:{pkt.srcPort}
+                    </td>
+                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
+                      {pkt.dstIp}:{pkt.dstPort}
+                    </td>
+                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
+                      {pkt.length} B
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      <div className="flex gap-1">
+                        {pkt.flags.map((f) => (
+                          <span
+                            key={f}
+                            className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
+                          >
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2.5">
+                      {pkt.isMalicious ? (
+                        <Badge variant="error">Malicious</Badge>
+                      ) : (
+                        <Badge variant="success">Normal</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </DashboardShell>
   );
 }
