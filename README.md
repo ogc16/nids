@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nids-core
 
-## Getting Started
+Network Intrusion Detection System - detection engine, traffic simulation, and security monitoring toolkit.
 
-First, run the development server:
+## Installation
+
+### npm (public registry)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install nids-core
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### GitHub Packages
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Requires a GitHub token with `read:packages` scope.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**.npmrc**
+```
+@ogc16:registry=https://npm.pkg.github.com/
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
 
-## Learn More
+```bash
+npm install @ogc16/nids-core
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Core Library (ESM)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```typescript
+import { generatePacket, evaluatePacket, getRules } from "nids-core";
 
-## Deploy on Vercel
+// Generate simulated network traffic
+const packet = generatePacket();
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+// Evaluate packet against detection rules
+const rules = getRules();
+const alert = evaluatePacket(packet, rules);
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+// Access the traffic store
+import { addPackets, getAlerts } from "nids-core/store";
+addPackets([packet]);
+console.log(getAlerts());
+```
+
+### Detection Engine
+
+```typescript
+import { processBatch, getInspectionMetrics } from "nids-core/engine";
+import { loadBuiltinSignatures } from "nids-core/engine";
+
+loadBuiltinSignatures();
+const results = processBatch(packets, rules);
+```
+
+### Types
+
+```typescript
+import type { Packet, Alert, DetectionRule, TrafficStats } from "nids-core/types";
+```
+
+### React Components
+
+```tsx
+import { Card, Button, Badge, Select, StatusDot } from "nids-core/ui";
+```
+
+### Legacy Components
+
+```tsx
+import { Card, DataTable, Pagination } from "nids-core/components";
+```
+
+### Auth Utilities (Next.js)
+
+```typescript
+import { createToken, verifyToken, hashPassword } from "nids-core/auth";
+```
+
+### Zod Validation Schemas
+
+```typescript
+import { schemas, validate } from "nids-core/validate";
+```
+
+### In-Memory Store
+
+```typescript
+import { getTrafficStats, addAlerts } from "nids-core/store";
+```
+
+### Express Backend Server
+
+```javascript
+const app = require("nids-core/server");
+app.listen(3000);
+```
+
+## Subpath Exports
+
+| Path | Description |
+|------|-------------|
+| `nids-core` | Main entry (types + core modules) |
+| `nids-core/types` | TypeScript type definitions |
+| `nids-core/engine` | Detection engine, rules, inspector, protocol parser |
+| `nids-core/traffic` | Network traffic simulation generator |
+| `nids-core/store` | In-memory packet/alert ring buffer |
+| `nids-core/assets` | Network asset management |
+| `nids-core/auth` | JWT auth (Next.js) |
+| `nids-core/validate` | Zod v4 validation schemas |
+| `nids-core/export` | Client-side JSON/CSV download |
+| `nids-core/siren` | Web Audio API siren |
+| `nids-core/rate-limit` | In-memory rate limiter (Next.js) |
+| `nids-core/csrf` | CSRF protection (Next.js) |
+| `nids-core/errors` | API error handler (Next.js) |
+| `nids-core/db` | SQLite database (better-sqlite3) |
+| `nids-core/inspector` | Async concurrent packet inspector |
+| `nids-core/ui` | React UI primitives (Tailwind-styled) |
+| `nids-core/components` | Legacy React components |
+| `nids-core/server` | Express.js backend app |
+| `nids-core/routes` | Express route modules |
+
+## Dependencies
+
+- **jose**, **bcryptjs**, **zod**, **better-sqlite3** — runtime deps
+- **next**, **react**, **react-dom** — optional peer deps (for Next.js/React modules)

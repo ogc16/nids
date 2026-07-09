@@ -1,26 +1,159 @@
 {
-  "name": "nids",
+  "name": "nids-core",
   "version": "0.1.0",
-  "private": true,
+  "description": "Network Intrusion Detection System - detection engine, traffic simulation, and security monitoring toolkit",
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ogc16/nids.git"
+  },
+  "keywords": [
+    "nids",
+    "intrusion-detection",
+    "network-security",
+    "ids",
+    "detection-engine",
+    "traffic-simulation",
+    "security-monitoring"
+  ],
+  "main": "./dist/exports/index.mjs",
+  "module": "./dist/exports/index.mjs",
+  "types": "./dist/exports/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/exports/index.d.mts",
+      "import": "./dist/exports/index.mjs",
+      "default": "./dist/exports/index.mjs"
+    },
+    "./types": {
+      "types": "./dist/exports/types.d.mts",
+      "import": "./dist/exports/types.mjs",
+      "default": "./dist/exports/types.mjs"
+    },
+    "./engine": {
+      "types": "./dist/exports/engine.d.mts",
+      "import": "./dist/exports/engine.mjs",
+      "default": "./dist/exports/engine.mjs"
+    },
+    "./traffic": {
+      "types": "./dist/exports/traffic.d.mts",
+      "import": "./dist/exports/traffic.mjs",
+      "default": "./dist/exports/traffic.mjs"
+    },
+    "./store": {
+      "types": "./dist/exports/store.d.mts",
+      "import": "./dist/exports/store.mjs",
+      "default": "./dist/exports/store.mjs"
+    },
+    "./assets": {
+      "types": "./dist/exports/assets.d.mts",
+      "import": "./dist/exports/assets.mjs",
+      "default": "./dist/exports/assets.mjs"
+    },
+    "./auth": {
+      "types": "./dist/exports/auth.d.mts",
+      "import": "./dist/exports/auth.mjs",
+      "default": "./dist/exports/auth.mjs"
+    },
+    "./validate": {
+      "types": "./dist/exports/validate.d.mts",
+      "import": "./dist/exports/validate.mjs",
+      "default": "./dist/exports/validate.mjs"
+    },
+    "./export": {
+      "types": "./dist/exports/export-lib.d.mts",
+      "import": "./dist/exports/export-lib.mjs",
+      "default": "./dist/exports/export-lib.mjs"
+    },
+    "./siren": {
+      "types": "./dist/exports/siren.d.mts",
+      "import": "./dist/exports/siren.mjs",
+      "default": "./dist/exports/siren.mjs"
+    },
+    "./rate-limit": {
+      "types": "./dist/exports/rate-limit.d.mts",
+      "import": "./dist/exports/rate-limit.mjs",
+      "default": "./dist/exports/rate-limit.mjs"
+    },
+    "./csrf": {
+      "types": "./dist/exports/csrf.d.mts",
+      "import": "./dist/exports/csrf.mjs",
+      "default": "./dist/exports/csrf.mjs"
+    },
+    "./errors": {
+      "types": "./dist/exports/errors.d.mts",
+      "import": "./dist/exports/errors.mjs",
+      "default": "./dist/exports/errors.mjs"
+    },
+    "./db": {
+      "types": "./dist/exports/db.d.mts",
+      "import": "./dist/exports/db.mjs",
+      "default": "./dist/exports/db.mjs"
+    },
+    "./inspector": {
+      "types": "./dist/exports/inspector.d.mts",
+      "import": "./dist/exports/inspector.mjs",
+      "default": "./dist/exports/inspector.mjs"
+    },
+    "./ui": {
+      "types": "./dist/exports/ui.d.mts",
+      "import": "./dist/exports/ui.mjs",
+      "default": "./dist/exports/ui.mjs"
+    },
+    "./components": {
+      "types": "./dist/exports/components.d.mts",
+      "import": "./dist/exports/components.mjs",
+      "default": "./dist/exports/components.mjs"
+    },
+    "./server": {
+      "require": "./app.js"
+    },
+    "./routes": {
+      "require": "./routes/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "app.js",
+    "server.js",
+    "routes/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:lib": "tsup",
+    "prepublishOnly": "npm run build:lib"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.11.1",
-    "chart.js": "^4.5.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "jose": "^6.2.3",
-    "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^1.23.0",
-    "next": "16.2.10",
-    "react": "19.2.4",
-    "react-chartjs-2": "^5.3.1",
-    "react-dom": "19.2.4",
-    "recharts": "^3.9.2",
+    "multer": "^2.2.0",
     "zod": "^4.4.3"
+  },
+  "publishConfig": {
+    "@ogc16:registry": "https://npm.pkg.github.com"
+  },
+  "peerDependencies": {
+    "next": ">=16",
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -28,9 +161,17 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "chart.js": "^4.5.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "lucide-react": "^1.23.0",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
     "tailwindcss": "^4",
+    "tsup": "^8.5.1",
     "typescript": "^5"
   }
 }
