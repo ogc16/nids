@@ -18,7 +18,6 @@ export default defineConfig({
     "exports/db": "src/exports/db.ts",
     "exports/inspector": "src/exports/inspector.ts",
     "exports/ui": "src/exports/ui.tsx",
-    "exports/components": "src/exports/components.ts",
   },
   format: ["esm"],
   dts: true,

@@ -101,25 +101,10 @@
       "import": "./dist/exports/ui.mjs",
       "default": "./dist/exports/ui.mjs"
     },
-    "./components": {
-      "types": "./dist/exports/components.d.mts",
-      "import": "./dist/exports/components.mjs",
-      "default": "./dist/exports/components.mjs"
-    },
-    "./server": {
-      "require": "./app.js"
-    },
-    "./routes": {
-      "require": "./routes/index.js"
-    },
     "./package.json": "./package.json"
   },
   "files": [
     "dist/",
-    "app.js",
-    "server.js",
-    "routes/",
-    "lib/",
     "README.md",
     "LICENSE"
   ],
@@ -134,12 +119,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.11.1",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "express-rate-limit": "^8.5.2",
-    "helmet": "^8.2.0",
     "jose": "^6.2.3",
-    "multer": "^2.2.0",
     "zod": "^4.4.3"
   },
   "publishConfig": {
