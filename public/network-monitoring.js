@@ -86,8 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     tbody.innerHTML = filtered.map(item => `
       <tr class="${item.status === 'suspicious' ? 'row-suspicious' : item.status === 'blocked' ? 'row-blocked' : ''}">
         <td>${formatDate(item.timestamp)}</td>
-        <td>${item.srcIp}:${item.srcPort}</td>
-        <td>${item.destIp}:${item.destPort}</td>
+        <td><span class="bl-ip-cell">${item.srcIp}:${item.srcPort}</span> <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${item.srcIp}" title="Flag this IP">&#9873;</button></td>
+        <td><span class="bl-ip-cell">${item.destIp}:${item.destPort}</span> <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${item.destIp}" title="Flag this IP">&#9873;</button></td>
         <td><span class="tag tag-${item.protocol.toLowerCase()}">${item.protocol}</span></td>
         <td>${formatBytes(item.bytes)}</td>
         <td>${formatDuration(item.duration)}</td>
@@ -124,6 +124,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
           showToast('Failed to load flow details', 'error');
         }
+      };
+    });
+
+    tbody.querySelectorAll('.flag-ip-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const ip = btn.dataset.ip;
+        const reason = prompt(`Reason for flagging ${ip}:`);
+        if (reason === null) return;
+        try {
+          await apiFetch('/blocklist', { method: 'POST', body: JSON.stringify({ ip, reason: reason || 'Flagged from traffic monitor', severity: 'medium', tags: [] }) });
+          showToast(`${ip} flagged`, 'success');
+        } catch (err) { showToast(err.message, 'error'); }
       };
     });
   }

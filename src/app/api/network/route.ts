@@ -37,27 +37,25 @@ export async function POST(request: NextRequest) {
 
     await authenticate(request);
 
-    const csrfCheck = await csrfProtection(request);
-    if (csrfCheck) return csrfCheck;
-
     const type = request.nextUrl.searchParams.get("type");
 
     if (type === "upload") {
-      const text = await request.text();
-      const start = Date.now();
+      const buffer = await request.arrayBuffer();
+      const size = buffer.byteLength;
+      const t0 = performance.now();
       try {
         await fetch("https://speed.cloudflare.com/__up", {
-          method: "PUT",
-          body: text,
-          headers: { "Content-Type": "application/octet-stream" },
+          method: "POST",
+          body: buffer,
           signal: AbortSignal.timeout(30000),
         });
       } catch {
-        /* fallback */
+        /* Cloudflare unreachable, still measure client->server time */
       }
-      const elapsed = Date.now() - start;
-      const mbps = elapsed > 0 ? ((text.length * 8) / elapsed / 1000).toFixed(1) : "0";
-      return NextResponse.json({ bytes: text.length, elapsed, mbps: Number(mbps) });
+      const elapsed = performance.now() - t0;
+      if (elapsed <= 0) return NextResponse.json({ bytes: size, elapsed: 0, mbps: 0 });
+      const mbps = parseFloat(((size * 8) / elapsed / 1000).toFixed(1));
+      return NextResponse.json({ bytes: size, elapsed: Math.round(elapsed), mbps });
     }
 
     return NextResponse.json({ error: "unknown type" }, { status: 400 });

@@ -46,6 +46,18 @@ app.use('/api/', (req, res, next) => {
   next();
 });
 
+// IP blocking middleware
+const blocklist = require('./lib/blocklist');
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection?.remoteAddress || '';
+  const cleanIp = ip.replace(/^::ffff:/, '');
+  if (blocklist.isBlocked(cleanIp)) {
+    blocklist.incrementHits(cleanIp);
+    return res.status(403).json({ error: 'Access denied', message: 'This IP address has been blocked' });
+  }
+  next();
+});
+
 // Mount all API routes
 const { router } = require('./routes');
 app.use('/api', router);

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IP Blocklist - NIDS</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <script src="/blocklist.js" defer></script>
+  <style>
+    .bl-stat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .bl-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+    .bl-stat .bl-stat-value { font-size: 28px; font-weight: 700; }
+    .bl-stat .bl-stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .bl-stat.critical .bl-stat-value { color: var(--accent-red); }
+    .bl-stat.high .bl-stat-value { color: var(--accent-orange); }
+    .bl-stat.medium .bl-stat-value { color: var(--accent-yellow); }
+    .bl-stat.blocked .bl-stat-value { color: var(--accent-green); }
+    .bl-add-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+    .bl-add-bar input, .bl-add-bar select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 13px; }
+    .bl-add-bar input[type="text"] { flex: 1; min-width: 140px; font-family: monospace; }
+    .bl-add-bar input[type="text"]::placeholder { font-family: sans-serif; }
+    .bl-add-bar .bl-reason { flex: 2; min-width: 200px; }
+    .bl-add-bar .bl-tags { flex: 1; min-width: 120px; }
+    .bl-ip-cell { font-family: monospace; font-weight: 600; font-size: 13px; }
+    .bl-reason-text { font-size: 12px; color: var(--text-secondary); max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bl-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .bl-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: rgba(88,166,255,0.12); color: var(--accent-blue); border: 1px solid rgba(88,166,255,0.2); }
+    .bl-tag.tor { background: rgba(248,81,73,0.12); color: var(--accent-red); border-color: rgba(248,81,73,0.2); }
+    .bl-tag.c2, .bl-tag.malware { background: rgba(248,81,73,0.12); color: var(--accent-red); border-color: rgba(248,81,73,0.2); }
+    .bl-tag.brute-force { background: rgba(210,153,34,0.12); color: var(--accent-orange); border-color: rgba(210,153,34,0.2); }
+    .bl-tag.recon { background: rgba(188,140,255,0.12); color: #bc8cff; border-color: rgba(188,140,255,0.2); }
+    .bl-tag.web-exploit { background: rgba(248,81,73,0.12); color: var(--accent-red); border-color: rgba(248,81,73,0.2); }
+    .bl-severity-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .bl-severity-badge.critical { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+    .bl-severity-badge.high { background: rgba(210,153,34,0.15); color: var(--accent-orange); }
+    .bl-severity-badge.medium { background: rgba(210,185,34,0.15); color: var(--accent-yellow); }
+    .bl-severity-badge.low { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+    .bl-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .bl-status-dot.blocked { background: var(--accent-red); }
+    .bl-status-dot.flagged { background: var(--accent-orange); }
+    .bl-hits { font-size: 12px; color: var(--text-secondary); }
+    .bl-actions { display: flex; gap: 6px; }
+    .bl-actions button { padding: 4px 10px; font-size: 11px; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab-bar .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary); border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab-bar .tab:hover { color: var(--text-primary); }
+    .tab-bar .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>NIDS Workspace</h1>
+        <div class="subtitle">Network Intrusion Detection System</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Overview</div>
+          <a href="/" class="nav-item"><span class="icon">&#9679;</span> Dashboard</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Security Operations</div>
+          <a href="/incidents" class="nav-item"><span class="icon">&#9888;</span> Incidents &amp; Alerts</a>
+          <a href="/rules" class="nav-item"><span class="icon">&#9878;</span> Detection Rules</a>
+          <a href="/threat-intel" class="nav-item"><span class="icon">&#9762;</span> Threat Intelligence</a>
+          <a href="/mitre" class="nav-item"><span class="icon">&#127758;</span> MITRE ATT&amp;CK</a>
+          <a href="/compliance" class="nav-item"><span class="icon">&#128203;</span> Compliance Dashboard</a>
+          <a href="/alerting" class="nav-item"><span class="icon">&#128276;</span> Alerting</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Monitoring</div>
+          <a href="/network-monitoring" class="nav-item"><span class="icon">&#128200;</span> Network Monitoring</a>
+          <a href="/web-traffic" class="nav-item"><span class="icon">&#127760;</span> Web Traffic</a>
+          <a href="/host-monitoring" class="nav-item"><span class="icon">&#128187;</span> Host Monitoring</a>
+          <a href="/wlan" class="nav-item"><span class="icon">&#128246;</span> WLAN Show Report</a>
+          <a href="/assets" class="nav-item"><span class="icon">&#128421;</span> Network Assets</a>
+          <a href="/agents" class="nav-item"><span class="icon">&#128268;</span> Remote Agents</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Detection &amp; Analysis</div>
+          <a href="/pcap-analysis" class="nav-item"><span class="icon">&#128220;</span> PCAP Analysis</a>
+          <a href="/snort" class="nav-item"><span class="icon">&#128481;</span> Snort/Suricata</a>
+          <a href="/vulnscan" class="nav-item"><span class="icon">&#128295;</span> Vulnerability Scanner</a>
+          <a href="/fim" class="nav-item"><span class="icon">&#128196;</span> File Integrity</a>
+          <a href="/ml" class="nav-item"><span class="icon">&#129302;</span> ML Anomaly Detection</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Engineering</div>
+          <a href="/tasks" class="nav-item"><span class="icon">&#9881;</span> Engineering Tasks</a>
+          <a href="/qa" class="nav-item"><span class="icon">&#9887;</span> QA &amp; Testing</a>
+          <a href="/soar" class="nav-item"><span class="icon">&#9889;</span> SOAR Automation</a>
+          <a href="/playbooks" class="nav-item"><span class="icon">&#128214;</span> Playbooks</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Governance</div>
+          <a href="/framework" class="nav-item"><span class="icon">&#9879;</span> NIST CSF</a>
+          <a href="/security-plan" class="nav-item"><span class="icon">&#128220;</span> Policies &amp; Standards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">System</div>
+          <a href="/setup" class="nav-item"><span class="icon">&#9881;</span> Setup</a>
+          <a href="/syslog" class="nav-item"><span class="icon">&#128231;</span> Log Collection</a>
+          <a href="/retention" class="nav-item"><span class="icon">&#128190;</span> Data Retention</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <a href="/report-incident" class="nav-item"><span class="icon">&#128196;</span> Report Incident</a>
+          <a href="/submit-rule" class="nav-item"><span class="icon">&#128221;</span> Submit Rule</a>
+          <a href="/add-asset" class="nav-item"><span class="icon">&#128421;</span> Add Asset</a>
+          <a href="/add-playbook" class="nav-item"><span class="icon">&#128214;</span> Add Playbook</a>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h2>&#128683; IP Blocklist</h2>
+          <div class="subtitle">Flag, block, and manage IP addresses — block traffic to/from node</div>
+        </div>
+        <div class="header-actions">
+          <span id="blRefreshTimer" style="font-size:11px;color:var(--text-secondary)"></span>
+          <button class="btn btn-secondary btn-sm" id="blRefreshBtn">Refresh</button>
+          <button class="btn btn-info btn-sm" id="blExportCsv">Export CSV</button>
+        </div>
+      </div>
+
+      <div id="blStats" class="bl-stat-row"></div>
+
+      <div class="bl-add-bar" id="blAddBar">
+        <input type="text" id="blIpInput" placeholder="IP address (e.g. 192.168.1.100)">
+        <input type="text" id="blReasonInput" class="bl-reason" placeholder="Reason for flagging...">
+        <select id="blSeverityInput">
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+          <option value="low">Low</option>
+        </select>
+        <input type="text" id="blTagsInput" class="bl-tags" placeholder="Tags (comma-separated)">
+        <button class="btn btn-primary btn-sm" id="blAddBtn">+ Flag IP</button>
+      </div>
+
+      <div class="tab-bar" id="blTabs">
+        <span class="tab active" data-filter="all">All</span>
+        <span class="tab" data-filter="blocked">Blocked</span>
+        <span class="tab" data-filter="flagged">Flagged (Not Blocked)</span>
+      </div>
+
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>IP Address</th>
+              <th>Severity</th>
+              <th>Reason</th>
+              <th>Tags</th>
+              <th>Hits</th>
+              <th>Flagged</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="blTableBody"></tbody>
+        </table>
+        <div id="blEmpty" style="display:none;text-align:center;padding:40px;color:var(--text-secondary)">No IPs match the current filter.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="blFlagModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="blModalTitle">Flag IP</h3>
+        <button class="modal-close" onclick="document.getElementById('blFlagModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-row">
+          <div class="detail-label">IP Address</div>
+          <div class="detail-value" id="blModalIp">-</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Reason</div>
+          <div class="detail-value"><input type="text" id="blModalReason" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Severity</div>
+          <div class="detail-value"><select id="blModalSeverity" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Tags</div>
+          <div class="detail-value"><input type="text" id="blModalTags" placeholder="comma-separated" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)"></div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('blFlagModal').style.display='none'">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="blModalSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

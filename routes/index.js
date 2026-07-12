@@ -22,6 +22,8 @@ router.use(require('./extra'));
 router.use(require('./alerting'));
 router.use(require('./automations').router);
 router.use(require('./setup'));
+router.use(require('./wlan'));
+router.use(require('./blocklist'));
 
 sse.setup(router);
 

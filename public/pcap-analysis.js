@@ -233,20 +233,46 @@ async function loadAnalysis(id) {
     const endpoints = await apiFetch(`/pcap/captures/${id}/analysis/endpoints?type=${type}`);
     document.getElementById('endpointsTableBody').innerHTML = endpoints.length === 0
       ? '<tr><td colspan="3">No endpoints found</td></tr>'
-      : endpoints.slice(0, 50).map(e => `<tr><td>${e.address}</td><td>${(e.rxPackets + e.txPackets).toLocaleString()}</td><td>${formatBytes(e.bytes)}</td></tr>`).join('');
+      : endpoints.slice(0, 50).map(e => `<tr><td>${e.address} <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${e.address}" title="Block this IP">&#9873;</button></td><td>${(e.rxPackets + e.txPackets).toLocaleString()}</td><td>${formatBytes(e.bytes)}</td></tr>`).join('');
   } catch (err) {
     document.getElementById('endpointsTableBody').innerHTML = `<tr><td colspan="3">${err.message}</td></tr>`;
   }
+
+  document.getElementById('endpointsTableBody').querySelectorAll('.flag-ip-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const ip = btn.dataset.ip;
+      const reason = prompt(`Reason for flagging ${ip}:`);
+      if (reason === null) return;
+      try {
+        await apiFetch('/blocklist', { method: 'POST', body: JSON.stringify({ ip, reason: reason || 'Flagged from PCAP endpoints', severity: 'medium', tags: [] }) });
+        showToast(`${ip} flagged`, 'success');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+  });
 
   try {
     const convType = document.getElementById('convTypeFilter').value;
     const convs = await apiFetch(`/pcap/captures/${id}/analysis/conversations?type=${convType}`);
     document.getElementById('conversationsTableBody').innerHTML = convs.length === 0
       ? '<tr><td colspan="5">No conversations found</td></tr>'
-      : convs.slice(0, 100).map(c => `<tr><td>${c.addrA}</td><td>${c.addrB}</td><td>${c.rxPackets.toLocaleString()}</td><td>${c.txPackets.toLocaleString()}</td><td>${formatBytes(c.bytes)}</td></tr>`).join('');
+      : convs.slice(0, 100).map(c => `<tr><td>${c.addrA} <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${c.addrA}" title="Block this IP">&#9873;</button></td><td>${c.addrB} <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${c.addrB}" title="Block this IP">&#9873;</button></td><td>${c.rxPackets.toLocaleString()}</td><td>${c.txPackets.toLocaleString()}</td><td>${formatBytes(c.bytes)}</td></tr>`).join('');
   } catch (err) {
     document.getElementById('conversationsTableBody').innerHTML = `<tr><td colspan="5">${err.message}</td></tr>`;
   }
+
+  document.getElementById('conversationsTableBody').querySelectorAll('.flag-ip-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const ip = btn.dataset.ip;
+      const reason = prompt(`Reason for flagging ${ip}:`);
+      if (reason === null) return;
+      try {
+        await apiFetch('/blocklist', { method: 'POST', body: JSON.stringify({ ip, reason: reason || 'Flagged from PCAP conversations', severity: 'medium', tags: [] }) });
+        showToast(`${ip} flagged`, 'success');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+  });
 
   packetOffset = 0;
   await loadPackets();
@@ -289,8 +315,8 @@ async function loadPackets() {
       : packets.map(p => `<tr>
         <td>${p.number}</td>
         <td style="font-size:11px;white-space:nowrap">${p.time ? new Date(p.time).toLocaleTimeString() : '-'}</td>
-        <td>${p.srcIp}${p.srcPortDisplay ? `:${p.srcPortDisplay}` : ''}</td>
-        <td>${p.dstIp}${p.dstPortDisplay ? `:${p.dstPortDisplay}` : ''}</td>
+        <td>${p.srcIp}${p.srcPortDisplay ? `:${p.srcPortDisplay}` : ''} <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${p.srcIp}" title="Block this IP">&#9873;</button></td>
+        <td>${p.dstIp}${p.dstPortDisplay ? `:${p.dstPortDisplay}` : ''} <button class="btn btn-secondary btn-sm flag-ip-btn" data-ip="${p.dstIp}" title="Block this IP">&#9873;</button></td>
         <td><span class="tag tag-${p.protocol.toLowerCase() || 'tcp'}">${p.protocol || 'Unknown'}</span></td>
         <td>${p.length || 0}</td>
         <td style="font-size:11px;color:var(--text-secondary)">${p.info || ''}</td>
@@ -307,6 +333,19 @@ async function loadPackets() {
     `;
     document.getElementById('prevPackets').onclick = () => { packetOffset = Math.max(0, packetOffset - PACKET_LIMIT); loadPackets(); };
     document.getElementById('nextPackets').onclick = () => { packetOffset += PACKET_LIMIT; loadPackets(); };
+
+    tbody.querySelectorAll('.flag-ip-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const ip = btn.dataset.ip;
+        const reason = prompt(`Reason for flagging ${ip}:`);
+        if (reason === null) return;
+        try {
+          await apiFetch('/blocklist', { method: 'POST', body: JSON.stringify({ ip, reason: reason || 'Flagged from PCAP analysis', severity: 'medium', tags: [] }) });
+          showToast(`${ip} flagged`, 'success');
+        } catch (err) { showToast(err.message, 'error'); }
+      };
+    });
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="7">Error: ${err.message}</td></tr>`;
   }
