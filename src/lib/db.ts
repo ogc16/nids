@@ -28,15 +28,18 @@ let db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (db) return db;
 
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const dbPath = path.join(DATA_DIR, "nids.db");
+    db = new Database(dbPath);
+    db.pragma("journal_mode = WAL");
+    db.pragma("foreign_keys = ON");
+  } catch {
+    db = new Database(":memory:");
+    db.pragma("foreign_keys = ON");
   }
-
-  const dbPath = path.join(DATA_DIR, "nids.db");
-  db = new Database(dbPath);
-
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
 
   initializeSchema();
   seedDefaults();
