@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -75,15 +77,39 @@ export default function LoginPage() {
             <label htmlFor="password" className="block text-sm font-medium" style={{ color: "var(--text-muted)" }}>
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
-              style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
-              required
-            />
+            <div className="relative mt-1">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 pr-10 text-sm outline-none focus:border-emerald-500"
+                style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setError("Contact your system administrator to reset your password.")}
+              className="text-xs font-medium transition-colors hover:underline"
+              style={{ color: "var(--accent)" }}
+            >
+              Forgot password?
+            </button>
           </div>
 
           {error && (
