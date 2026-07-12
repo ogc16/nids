@@ -11,7 +11,7 @@ export function TopIpsTable({ ips, ports }: TopIpsTableProps) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card title="Top Source IPs" subtitle="Most active source addresses">
         {ips.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-sm text-zinc-600">
+          <div className="flex h-24 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
             No data
           </div>
         ) : (
@@ -19,13 +19,16 @@ export function TopIpsTable({ ips, ports }: TopIpsTableProps) {
             {ips.map((item, i) => (
               <div
                 key={item.ip}
-                className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-zinc-800/50"
+                className="flex items-center justify-between rounded px-2 py-1 text-sm transition-colors"
+                style={{ color: "var(--text-primary)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
               >
                 <div className="flex items-center gap-2">
-                  <span className="w-5 text-xs font-medium text-zinc-600">#{i + 1}</span>
-                  <span className="font-mono text-xs text-zinc-300">{item.ip}</span>
+                  <span className="w-5 text-xs font-medium" style={{ color: "var(--text-faint)" }}>#{i + 1}</span>
+                  <span className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{item.ip}</span>
                 </div>
-                <span className="font-mono text-xs text-zinc-500">{item.count} pkts</span>
+                <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{item.count} pkts</span>
               </div>
             ))}
           </div>
@@ -33,7 +36,7 @@ export function TopIpsTable({ ips, ports }: TopIpsTableProps) {
       </Card>
       <Card title="Top Destination Ports" subtitle="Most targeted ports">
         {ports.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-sm text-zinc-600">
+          <div className="flex h-24 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
             No data
           </div>
         ) : (
@@ -41,13 +44,16 @@ export function TopIpsTable({ ips, ports }: TopIpsTableProps) {
             {ports.map((item, i) => (
               <div
                 key={item.port}
-                className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-zinc-800/50"
+                className="flex items-center justify-between rounded px-2 py-1 text-sm transition-colors"
+                style={{ color: "var(--text-primary)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
               >
                 <div className="flex items-center gap-2">
-                  <span className="w-5 text-xs font-medium text-zinc-600">#{i + 1}</span>
-                  <span className="font-mono text-xs text-zinc-300">{item.port}</span>
+                  <span className="w-5 text-xs font-medium" style={{ color: "var(--text-faint)" }}>#{i + 1}</span>
+                  <span className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{item.port}</span>
                 </div>
-                <span className="font-mono text-xs text-zinc-500">{item.count} pkts</span>
+                <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>{item.count} pkts</span>
               </div>
             ))}
           </div>

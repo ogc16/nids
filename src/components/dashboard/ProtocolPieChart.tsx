@@ -1,4 +1,7 @@
+"use client";
+
 import { TrafficStats } from "@/lib/types";
+import { useThemeColors } from "@/lib/use-theme-colors";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 const COLORS = [
@@ -11,13 +14,14 @@ interface ProtocolPieChartProps {
 }
 
 export function ProtocolPieChart({ protocols }: ProtocolPieChartProps) {
+  const c = useThemeColors();
   const data = Object.entries(protocols)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
   if (data.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-zinc-600">
+      <div className="flex h-48 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
         No data
       </div>
     );
@@ -46,18 +50,18 @@ export function ProtocolPieChart({ protocols }: ProtocolPieChartProps) {
           </Pie>
           <Tooltip
             contentStyle={{
-              background: "#18181b",
-              border: "1px solid #27272a",
+              background: c.tooltipBg,
+              border: `1px solid ${c.tooltipBorder}`,
               borderRadius: "8px",
               fontSize: "12px",
             }}
-            itemStyle={{ color: "#e4e4e7" }}
+            itemStyle={{ color: c.tooltipText }}
           />
         </PieChart>
       </ResponsiveContainer>
       <div className="mt-2 flex flex-wrap justify-center gap-3">
         {data.slice(0, 6).map((entry, index) => (
-          <div key={entry.name} className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <div key={entry.name} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
               style={{ backgroundColor: COLORS[index % COLORS.length] }}

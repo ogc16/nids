@@ -17,7 +17,7 @@ export function AssetTraffic({ assets }: { assets: AssetRow[] }) {
 
   if (active.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center text-xs text-zinc-600">
+      <div className="flex h-32 items-center justify-center text-xs" style={{ color: "var(--text-faint)" }}>
         No asset traffic yet.
       </div>
     );
@@ -34,24 +34,27 @@ export function AssetTraffic({ assets }: { assets: AssetRow[] }) {
           <Link
             key={row.asset.id}
             href="/assets"
-            className="block rounded-lg bg-zinc-800/30 px-3 py-2 transition-colors hover:bg-zinc-800/50"
+            className="block rounded-lg px-3 py-2 transition-colors"
+            style={{ backgroundColor: "transparent" }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
           >
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <StatusDot status={isActive ? "active" : "inactive"} />
-                <span className="font-medium text-zinc-200 truncate">
+                <span className="font-medium truncate" style={{ color: "var(--text-secondary)" }}>
                   {row.asset.name}
                 </span>
-                <span className="font-mono text-zinc-500">{row.asset.ip}</span>
+                <span className="font-mono" style={{ color: "var(--text-muted)" }}>{row.asset.ip}</span>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-zinc-400">{row.totalPackets} pkt</span>
+                <span style={{ color: "var(--text-muted)" }}>{row.totalPackets} pkt</span>
                 {row.totalAlerts > 0 && (
-                  <span className="text-red-400">{row.totalAlerts} alerts</span>
+                  <span className="text-red-500">{row.totalAlerts} alerts</span>
                 )}
               </div>
             </div>
-            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-zinc-800">
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full" style={{ backgroundColor: "var(--bg-muted)" }}>
               <div
                 className={`h-full rounded-full transition-all ${
                   row.totalAlerts > 0 ? "bg-red-500" : "bg-emerald-500"

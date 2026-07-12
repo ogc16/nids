@@ -91,13 +91,15 @@ export default function AssetsPage() {
     return b + " B";
   };
 
+  const inputStyle: React.CSSProperties = { borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" };
+
   return (
     <DashboardShell>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Network Assets</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Network Assets</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
             {assets.length} assets tracked
           </p>
         </div>
@@ -106,7 +108,8 @@ export default function AssetsPage() {
           value={filter}
           onChange={(e) => setFilter(e.target.value.toLowerCase())}
           placeholder="Filter by name, IP, group..."
-          className="w-64 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500"
+          className="w-64 rounded-lg border px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
+          style={inputStyle}
         />
       </div>
 
@@ -114,7 +117,8 @@ export default function AssetsPage() {
         {filtered.map((row) => (
           <div
             key={row.asset.id}
-            className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-sm"
+            className="rounded-xl border backdrop-blur-sm p-4"
+            style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-sm)" }}
           >
             <div className="flex items-start justify-between">
               <div className="min-w-0 flex-1">
@@ -123,7 +127,8 @@ export default function AssetsPage() {
                     <input
                       value={editForm.nickname}
                       onChange={(e) => setEditForm((f) => ({ ...f, nickname: e.target.value }))}
-                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+                      className="w-full rounded border px-2 py-1 text-sm outline-none focus:border-emerald-500"
+                      style={inputStyle}
                       placeholder="Nickname (optional)"
                       autoFocus
                     />
@@ -131,7 +136,8 @@ export default function AssetsPage() {
                       <select
                         value={editForm.type}
                         onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))}
-                        className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-emerald-500"
+                        className="rounded border px-2 py-1 text-xs outline-none focus:border-emerald-500"
+                        style={inputStyle}
                       >
                         {["server", "workstation", "database", "firewall", "router", "service", "other"].map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -140,7 +146,8 @@ export default function AssetsPage() {
                       <input
                         value={editForm.group}
                         onChange={(e) => setEditForm((f) => ({ ...f, group: e.target.value }))}
-                        className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-emerald-500"
+                        className="rounded border px-2 py-1 text-xs outline-none focus:border-emerald-500"
+                        style={inputStyle}
                         placeholder="Group"
                       />
                       <button
@@ -151,7 +158,10 @@ export default function AssetsPage() {
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-600"
+                        className="rounded px-2 py-1 text-xs transition-colors"
+                        style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-secondary)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-muted)"; }}
                       >
                         Cancel
                       </button>
@@ -161,12 +171,13 @@ export default function AssetsPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => startEdit(row)}
-                      className="text-sm font-semibold text-zinc-100 hover:text-emerald-400 transition-colors text-left"
+                      className="text-sm font-semibold transition-colors text-left hover:text-emerald-500"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       {row.asset.name}
                     </button>
                     {row.asset.nickname && (
-                      <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                      <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}>
                         {row.asset.nickname}
                       </span>
                     )}
@@ -178,17 +189,18 @@ export default function AssetsPage() {
                     </Badge>
                   </div>
                 )}
-                <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                <p className="mt-0.5 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
                   {row.asset.ip}
                 </p>
-                <p className="mt-0.5 text-xs text-zinc-600">
+                <p className="mt-0.5 text-xs" style={{ color: "var(--text-faint)" }}>
                   {row.asset.group}
                   {row.asset.tags.length > 0 && (
                     <span className="ml-2">
                       {row.asset.tags.map((t) => (
                         <span
                           key={t}
-                          className="ml-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400"
+                          className="ml-1 rounded px-1.5 py-0.5 text-[10px]"
+                          style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
                         >
                           {t}
                         </span>
@@ -197,36 +209,36 @@ export default function AssetsPage() {
                   )}
                 </p>
                 {row.asset.description && (
-                  <p className="mt-1 text-xs text-zinc-600">{row.asset.description}</p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>{row.asset.description}</p>
                 )}
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-3 border-t border-zinc-800 pt-3 text-center text-xs">
+            <div className="mt-3 grid grid-cols-4 gap-3 border-t pt-3 text-center text-xs" style={{ borderColor: "var(--border-default)" }}>
               <div>
-                <div className="text-zinc-400">{row.totalPackets}</div>
-                <div className="text-zinc-600">packets</div>
+                <div style={{ color: "var(--text-muted)" }}>{row.totalPackets}</div>
+                <div style={{ color: "var(--text-faint)" }}>packets</div>
               </div>
               <div>
-                <div className="text-zinc-400">
+                <div style={{ color: "var(--text-muted)" }}>
                   {row.incomingPackets} &rarr; {row.outgoingPackets}
                 </div>
-                <div className="text-zinc-600">in / out</div>
+                <div style={{ color: "var(--text-faint)" }}>in / out</div>
               </div>
               <div>
-                <div className="text-zinc-400">{formatBytes(row.bytesIn + row.bytesOut)}</div>
-                <div className="text-zinc-600">volume</div>
+                <div style={{ color: "var(--text-muted)" }}>{formatBytes(row.bytesIn + row.bytesOut)}</div>
+                <div style={{ color: "var(--text-faint)" }}>volume</div>
               </div>
               <div>
-                <div className={row.totalAlerts > 0 ? "text-red-400" : "text-zinc-400"}>
+                <div className={row.totalAlerts > 0 ? "text-red-500" : ""} style={row.totalAlerts === 0 ? { color: "var(--text-muted)" } : undefined}>
                   {row.totalAlerts}
                 </div>
-                <div className="text-zinc-600">alerts</div>
+                <div style={{ color: "var(--text-faint)" }}>alerts</div>
               </div>
             </div>
 
             {row.lastSeen > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-zinc-600">
+              <div className="mt-2 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-faint)" }}>
                 <StatusDot
                   status={Date.now() - row.lastSeen < 10000 ? "active" : "inactive"}
                 />
@@ -241,7 +253,7 @@ export default function AssetsPage() {
 
       {filtered.length === 0 && (
         <Card>
-          <div className="flex h-48 items-center justify-center text-sm text-zinc-600">
+          <div className="flex h-48 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
             No assets match filter.
           </div>
         </Card>

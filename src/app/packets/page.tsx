@@ -44,8 +44,8 @@ export default function PacketsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Packet Capture</h1>
-            <p className="mt-1 text-sm text-zinc-500">
+            <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Packet Capture</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               Live packet stream - {packets.length} captured, {filtered.length} shown
             </p>
           </div>
@@ -55,12 +55,14 @@ export default function PacketsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search IP, protocol, payload..."
-              className="w-64 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500"
+              className="w-64 rounded-lg border px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
+              style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
             />
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="rounded-lg border px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
+              style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
             >
               <option value="all">All Packets</option>
               <option value="malicious">Malicious Only</option>
@@ -79,7 +81,7 @@ export default function PacketsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
+                <tr className="border-b text-xs uppercase tracking-wider" style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>
                   <th className="pb-3 pr-4 font-medium">Time</th>
                   <th className="pb-3 pr-4 font-medium">Protocol</th>
                   <th className="pb-3 pr-4 font-medium">Source</th>
@@ -93,25 +95,29 @@ export default function PacketsPage() {
                 {filtered.slice(0, 200).map((pkt) => (
                   <tr
                     key={pkt.id}
-                    className={`border-b border-zinc-800/50 transition-colors hover:bg-zinc-800/30 ${
-                      pkt.isMalicious ? "bg-red-900/10" : ""
-                    }`}
+                    className="border-b transition-colors"
+                    style={{
+                      borderColor: "var(--border-default)",
+                      backgroundColor: pkt.isMalicious ? "rgba(239, 68, 68, 0.05)" : "transparent",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = pkt.isMalicious ? "rgba(239, 68, 68, 0.05)" : "transparent"; }}
                   >
-                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
+                    <td className="py-2.5 pr-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
                       {new Date(pkt.timestamp).toLocaleTimeString()}
                     </td>
                     <td className="py-2.5 pr-4">
-                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-300">
+                      <span className="rounded px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-secondary)" }}>
                         {pkt.protocol}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
+                    <td className="py-2.5 pr-4 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>
                       {pkt.srcIp}:{pkt.srcPort}
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
+                    <td className="py-2.5 pr-4 font-mono text-xs" style={{ color: "var(--text-secondary)" }}>
                       {pkt.dstIp}:{pkt.dstPort}
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-xs text-zinc-500">
+                    <td className="py-2.5 pr-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
                       {pkt.length} B
                     </td>
                     <td className="py-2.5 pr-4">
@@ -119,7 +125,8 @@ export default function PacketsPage() {
                         {pkt.flags.map((f) => (
                           <span
                             key={f}
-                            className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
+                            className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                            style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
                           >
                             {f}
                           </span>

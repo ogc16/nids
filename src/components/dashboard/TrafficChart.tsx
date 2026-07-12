@@ -1,6 +1,7 @@
 "use client";
 
 import { TrafficStats } from "@/lib/types";
+import { useThemeColors } from "@/lib/use-theme-colors";
 import {
   AreaChart,
   Area,
@@ -17,51 +18,53 @@ interface TrafficChartProps {
 }
 
 export function TrafficChart({ data }: TrafficChartProps) {
+  const c = useThemeColors();
+
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
           <defs>
             <linearGradient id="normalGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+              <stop offset="5%" stopColor={c.normalGradStart} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={c.normalGradEnd} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="maliciousGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              <stop offset="5%" stopColor={c.maliciousGradStart} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={c.maliciousGradEnd} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <CartesianGrid strokeDasharray="3 3" stroke={c.grid} />
           <XAxis
             dataKey="time"
-            tick={{ fill: "#a1a1aa", fontSize: 11 }}
+            tick={{ fill: c.tick, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
-            tick={{ fill: "#a1a1aa", fontSize: 11 }}
+            tick={{ fill: c.tick, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
           />
           <Tooltip
             contentStyle={{
-              background: "#18181b",
-              border: "1px solid #27272a",
+              background: c.tooltipBg,
+              border: `1px solid ${c.tooltipBorder}`,
               borderRadius: "8px",
               fontSize: "12px",
             }}
-            itemStyle={{ color: "#e4e4e7" }}
-            labelStyle={{ color: "#a1a1aa" }}
+            itemStyle={{ color: c.tooltipText }}
+            labelStyle={{ color: c.tooltipLabel }}
           />
           <Legend
-            wrapperStyle={{ fontSize: "12px", color: "#a1a1aa" }}
+            wrapperStyle={{ fontSize: "12px", color: c.tick }}
           />
           <Area
             type="monotone"
             dataKey="normal"
-            stroke="#10b981"
+            stroke={c.normalStroke}
             fill="url(#normalGrad)"
             strokeWidth={2}
             name="Normal Traffic"
@@ -70,7 +73,7 @@ export function TrafficChart({ data }: TrafficChartProps) {
           <Area
             type="monotone"
             dataKey="malicious"
-            stroke="#ef4444"
+            stroke={c.maliciousStroke}
             fill="url(#maliciousGrad)"
             strokeWidth={2}
             name="Malicious Traffic"

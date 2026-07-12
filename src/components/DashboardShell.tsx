@@ -18,8 +18,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
-        <p className="text-sm text-zinc-500">Loading...</p>
+      <div className="flex h-screen items-center justify-center" style={{ backgroundColor: "var(--bg-body)" }}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
       </div>
     );
   }

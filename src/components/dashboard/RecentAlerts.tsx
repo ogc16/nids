@@ -16,7 +16,7 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
   if (sorted.length === 0) {
     return (
       <Card title="Recent Alerts" subtitle="Latest security alerts">
-        <div className="flex h-32 items-center justify-center text-sm text-zinc-600">
+        <div className="flex h-32 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
           No alerts yet. Traffic is clean.
         </div>
       </Card>
@@ -29,20 +29,21 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
         {sorted.map((alert) => (
           <div
             key={alert.id}
-            className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2.5"
+            className="flex items-center justify-between rounded-lg border px-3 py-2.5"
+            style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface-alt)" }}
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium text-zinc-200">
+                <span className="truncate text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                   {alert.title}
                 </span>
                 <Badge variant={alert.severity}>{alert.severity}</Badge>
               </div>
-              <div className="mt-0.5 text-xs text-zinc-500">
+              <div className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                 {alert.sourceIp}:{alert.protocol} &rarr; {alert.destinationIp}
               </div>
             </div>
-            <div className="ml-3 shrink-0 text-right text-xs text-zinc-600">
+            <div className="ml-3 shrink-0 text-right text-xs" style={{ color: "var(--text-faint)" }}>
               {new Date(alert.timestamp).toLocaleTimeString()}
             </div>
           </div>

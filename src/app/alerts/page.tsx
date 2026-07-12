@@ -57,8 +57,8 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Alerts</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Alerts</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
             {alerts.length} total alerts ({filtered.length} shown)
           </p>
         </div>
@@ -99,7 +99,7 @@ export default function AlertsPage() {
 
       {filtered.length === 0 ? (
         <Card>
-          <div className="flex h-48 items-center justify-center text-sm text-zinc-600">
+          <div className="flex h-48 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
             No alerts match the current filters.
           </div>
         </Card>
@@ -108,24 +108,25 @@ export default function AlertsPage() {
           {filtered.map((alert) => (
             <div
               key={alert.id}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-sm"
+              className="rounded-xl border backdrop-blur-sm p-4"
+              style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-sm)" }}
             >
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-zinc-100">
+                    <span className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                       {alert.title}
                     </span>
                     <Badge variant={alert.severity}>{alert.severity}</Badge>
                     <Badge variant={getStatus(alert)}>{getStatus(alert)}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-zinc-400">{alert.description}</p>
-                  <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-500">
+                  <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{alert.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-4 text-xs" style={{ color: "var(--text-muted)" }}>
                     <span>
-                      Source: <span className="font-mono text-zinc-300">{alert.sourceIp}</span>
+                      Source: <span className="font-mono" style={{ color: "var(--text-secondary)" }}>{alert.sourceIp}</span>
                     </span>
                     <span>
-                      Dest: <span className="font-mono text-zinc-300">{alert.destinationIp}</span>
+                      Dest: <span className="font-mono" style={{ color: "var(--text-secondary)" }}>{alert.destinationIp}</span>
                     </span>
                     <span>Protocol: {alert.protocol}</span>
                     <span>

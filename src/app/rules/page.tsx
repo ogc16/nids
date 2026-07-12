@@ -60,8 +60,8 @@ export default function RulesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-100">Detection Rules</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Detection Rules</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
             {rules.filter((r) => r.enabled).length} active / {rules.length} total rules
           </p>
         </div>
@@ -101,30 +101,31 @@ export default function RulesPage() {
         {rules.map((rule) => (
           <div
             key={rule.id}
-            className={`rounded-xl border p-4 backdrop-blur-sm transition-colors ${
-              rule.enabled
-                ? "border-zinc-800 bg-zinc-900/60"
-                : "border-zinc-800/50 bg-zinc-900/30 opacity-60"
-            }`}
+            className="rounded-xl border p-4 backdrop-blur-sm transition-colors"
+            style={{
+              borderColor: rule.enabled ? "var(--border-default)" : "var(--border-default)",
+              backgroundColor: rule.enabled ? "var(--bg-surface)" : "var(--bg-surface-alt)",
+              opacity: rule.enabled ? 1 : 0.6,
+              boxShadow: "var(--shadow-sm)",
+            }}
           >
             <div className="flex items-start justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      rule.enabled ? "bg-emerald-500" : "bg-zinc-600"
-                    }`}
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: rule.enabled ? "var(--accent)" : "var(--text-faint)" }}
                   />
-                  <span className="text-sm font-semibold text-zinc-100">{rule.name}</span>
+                  <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{rule.name}</span>
                   <Badge variant={rule.severity}>{rule.severity}</Badge>
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+                  <span className="rounded px-2 py-0.5 text-xs" style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}>
                     {rule.protocol}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-zinc-500">{rule.description}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-600">
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{rule.description}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-faint)" }}>
                   <span>
-                    Pattern: <span className="font-mono text-zinc-400">{rule.pattern || "*"}</span>
+                    Pattern: <span className="font-mono" style={{ color: "var(--text-muted)" }}>{rule.pattern || "*"}</span>
                   </span>
                   <span>Category: {rule.category}</span>
                   {rule.destinationPort && <span>Port: {rule.destinationPort}</span>}
@@ -182,25 +183,29 @@ function RuleForm({
     });
   };
 
+  const inputStyle: React.CSSProperties = { borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Name</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Name</label>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
             placeholder="Rule name"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Protocol</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Protocol</label>
           <select
             value={protocol}
             onChange={(e) => setProtocol(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
           >
             {["ANY", "TCP", "UDP", "ICMP", "HTTP", "DNS", "HTTPS", "ARP", "DHCP"].map((p) => (
               <option key={p} value={p}>{p}</option>
@@ -208,11 +213,12 @@ function RuleForm({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Severity</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Severity</label>
           <select
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
           >
             {["critical", "high", "medium", "low"].map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -220,40 +226,44 @@ function RuleForm({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Category</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Category</label>
           <input
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-400">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>
             Destination Port (optional)
           </label>
           <input
             type="number"
             value={destinationPort}
             onChange={(e) => setDestinationPort(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
             placeholder="e.g. 80"
           />
         </div>
         <div className="col-span-2">
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Pattern</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Pattern</label>
           <input
             value={pattern}
             onChange={(e) => setPattern(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
             placeholder="Payload pattern to match (e.g. SELECT, <script>)"
           />
         </div>
         <div className="col-span-2">
-          <label className="mb-1 block text-xs font-medium text-zinc-400">Description</label>
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-muted)" }}>Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            style={inputStyle}
             rows={2}
             placeholder="What this rule detects"
           />

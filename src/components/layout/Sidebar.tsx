@@ -26,10 +26,10 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="flex w-56 flex-col border-r border-zinc-800 bg-zinc-900/50">
-      <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-4">
-        <Shield className="h-5 w-5 text-emerald-500" />
-        <span className="text-sm font-bold text-zinc-100">NIDS</span>
+    <aside className="flex w-56 flex-col border-r" style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface-alt)" }}>
+      <div className="flex items-center gap-2.5 border-b px-5 py-4" style={{ borderColor: "var(--border-default)" }}>
+        <Shield className="h-5 w-5" style={{ color: "var(--accent)" }} />
+        <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>NIDS</span>
       </div>
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
@@ -39,11 +39,13 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-emerald-600/15 text-emerald-400"
-                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-              }`}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: isActive ? "var(--accent-subtle)" : "transparent",
+                color: isActive ? "var(--accent)" : "var(--text-muted)",
+              }}
+              onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.backgroundColor = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-secondary)"; } }}
+              onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; } }}
             >
               <Icon className="h-4 w-4" />
               {item.label}
@@ -51,13 +53,13 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-zinc-800 p-4">
-        <div className="flex items-center gap-2 text-xs text-zinc-600">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      <div className="border-t p-4" style={{ borderColor: "var(--border-default)" }}>
+        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-faint)" }}>
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--accent)" }} />
           System Online
         </div>
         {ip && (
-          <p className="mt-1 font-mono text-[10px] text-zinc-600">{ip}</p>
+          <p className="mt-1 font-mono text-[10px]" style={{ color: "var(--text-faint)" }}>{ip}</p>
         )}
       </div>
     </aside>

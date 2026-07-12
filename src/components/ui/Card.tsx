@@ -10,12 +10,15 @@ interface CardProps {
 
 export function Card({ title, subtitle, children, className = "", action }: CardProps) {
   return (
-    <div className={`rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm ${className}`}>
+    <div
+      className={`rounded-xl border backdrop-blur-sm ${className}`}
+      style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-sm)" }}
+    >
       {(title || action) && (
-        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--border-default)" }}>
           <div>
-            {title && <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>}
-            {subtitle && <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>}
+            {title && <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>}
+            {subtitle && <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>{subtitle}</p>}
           </div>
           {action && <div>{action}</div>}
         </div>

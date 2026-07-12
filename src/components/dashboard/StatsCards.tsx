@@ -45,30 +45,31 @@ export function StatsCards({ stats }: StatsCardsProps) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-sm"
+          className="rounded-xl border backdrop-blur-sm p-4"
+          style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-sm)" }}
         >
           <div className="flex items-center gap-2">
             <StatusDot status={card.status} />
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               {card.label}
             </span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-zinc-100">{card.value}</div>
-          <div className="mt-0.5 text-xs text-zinc-600">{card.sub}</div>
+          <div className="mt-2 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{card.value}</div>
+          <div className="mt-0.5 text-xs" style={{ color: "var(--text-faint)" }}>{card.sub}</div>
         </div>
       ))}
       {insp && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-sm">
+        <div className="rounded-xl border backdrop-blur-sm p-4" style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-sm)" }}>
           <div className="flex items-center gap-2">
             <StatusDot status="active" />
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               Inspection
             </span>
           </div>
-          <div className="mt-2 text-2xl font-bold text-zinc-100">
-            {insp.packetsPerSecond.toFixed(0)} <span className="text-sm font-normal text-zinc-500">pkt/s</span>
+          <div className="mt-2 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+            {insp.packetsPerSecond.toFixed(0)} <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>pkt/s</span>
           </div>
-          <div className="mt-0.5 text-xs text-zinc-600">
+          <div className="mt-0.5 text-xs" style={{ color: "var(--text-faint)" }}>
             {insp.activeWorkers} workers · {insp.avgInspectionMs.toFixed(2)}ms avg
           </div>
         </div>

@@ -35,8 +35,8 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-        <p className="text-sm text-zinc-500">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "var(--bg-body)" }}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
       </div>
     );
   }
@@ -44,16 +44,19 @@ export default function LoginPage() {
   if (user) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border border-zinc-800 bg-zinc-900 p-8">
+    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "var(--bg-body)" }}>
+      <div
+        className="w-full max-w-sm space-y-6 rounded-lg border p-8"
+        style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)", boxShadow: "var(--shadow-md)" }}
+      >
         <div className="text-center">
-          <h1 className="text-xl font-bold text-zinc-100">NIDS</h1>
-          <p className="mt-1 text-sm text-zinc-500">Network Intrusion Detection System</p>
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>NIDS</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>Network Intrusion Detection System</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-zinc-400">
+            <label htmlFor="username" className="block text-sm font-medium" style={{ color: "var(--text-muted)" }}>
               Username
             </label>
             <input
@@ -61,14 +64,15 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="mt-1 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
               required
               autoFocus
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-400">
+            <label htmlFor="password" className="block text-sm font-medium" style={{ color: "var(--text-muted)" }}>
               Password
             </label>
             <input
@@ -76,13 +80,14 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-emerald-500"
+              className="mt-1 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              style={{ borderColor: "var(--border-strong)", backgroundColor: "var(--bg-input)", color: "var(--text-primary)" }}
               required
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-500">{error}</p>
           )}
 
           <button

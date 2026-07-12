@@ -51,12 +51,12 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Network Dashboard</h1>
-            <p className="mt-1 text-sm text-zinc-500">
+            <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Network Dashboard</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               Real-time network traffic monitoring and intrusion detection
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
             <StatusDot status={stats ? "active" : "inactive"} />
             {stats ? "Monitoring" : "Connecting..."}
           </div>
@@ -81,7 +81,7 @@ export default function Dashboard() {
 
             <TopIpsTable ips={stats.topSourceIps} ports={stats.topDestPorts} />
 
-            <Card title="Active Assets" subtitle="Traffic volume by asset" action={<a href="/assets" className="text-xs text-emerald-500 hover:text-emerald-400">View all</a>}>
+            <Card title="Active Assets" subtitle="Traffic volume by asset" action={<a href="/assets" className="text-xs hover:opacity-80" style={{ color: "var(--accent)" }}>View all</a>}>
               <AssetTraffic assets={assets} />
             </Card>
 
@@ -90,7 +90,7 @@ export default function Dashboard() {
         )}
 
         {!stats && (
-          <div className="flex h-64 items-center justify-center text-sm text-zinc-600">
+          <div className="flex h-64 items-center justify-center text-sm" style={{ color: "var(--text-faint)" }}>
             Loading...
           </div>
         )}
